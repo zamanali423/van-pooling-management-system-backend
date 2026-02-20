@@ -157,7 +157,6 @@ updateChild = async (req, res) => {
       index++;
     }
 
-    // Handle file upload
     if (req.files?.child_pic?.[0]?.path) {
       updates.push(`child_pic=$${index}`);
       values.push(req.files.child_pic[0].path);
