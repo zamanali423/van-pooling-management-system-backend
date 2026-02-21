@@ -39,7 +39,7 @@ bookVan = async (req, res) => {
   let { childId } = req.body;
   const parentId = req.user.id;
 
-  console.log("Booking van:", vanId, "for child:", childId)
+  console.log("Booking van:", vanId, "for child:", childId);
 
   try {
     await pool.query("BEGIN");
@@ -71,23 +71,26 @@ bookVan = async (req, res) => {
         "SELECT COUNT(*) FROM bookings WHERE van_id=$1 AND status='ACTIVE'",
         [vanId]
       );
-      if (parseInt(usedRes.rows[0].count) >= van.capacity)
-        throw "Van is full";
+      if (parseInt(usedRes.rows[0].count) >= van.capacity) throw "Van is full";
 
       const existsRes = await pool.query(
         "SELECT 1 FROM bookings WHERE child_id=$1 AND status='ACTIVE'",
         [id]
       );
-      if (existsRes.rows.length) throw `Child ${child.full_name} already has an active booking`;
+      if (existsRes.rows.length)
+        throw `Child ${child.full_name} already has an active booking`;
 
       const bookingRes = await pool.query(
         "INSERT INTO bookings (child_id, van_id, status) VALUES ($1,$2,'ACTIVE') RETURNING *",
         [id, vanId]
       );
 
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 5);
+
       await pool.query(
-        "INSERT INTO cash_payments (booking_id, parent_id, amount) VALUES ($1,$2,$3)",
-        [bookingRes.rows[0].id, parentId, van.fare]
+        "INSERT INTO cash_payments (booking_id, parent_id, amount, due_date) VALUES ($1,$2,$3,$4)",
+        [bookingRes.rows[0].id, parentId, van.fare, dueDate]
       );
 
       bookings.push(bookingRes.rows[0]);
@@ -101,7 +104,6 @@ bookVan = async (req, res) => {
     res.status(400).json({ error: err.toString() });
   }
 };
-
 
 getVanDetails = async (req, res) => {
   const { vanId } = req.params;

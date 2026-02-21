@@ -21,6 +21,7 @@ const {
 } = require("../../validation/parents/feedbackValidation");
 const {
   getPaymentHistory,
+  payNow,
 } = require("../../controllers/payments/paymentController");
 const {
   getVans,
@@ -35,7 +36,6 @@ const {
 } = require("../../controllers/bookings/bookingController");
 const upload = require("../../middlewares/upload");
 const router = express.Router();
-
 
 router.post(
   "/add-children",
@@ -71,4 +71,11 @@ router.put("/bookings/:bookingId/cancel", verifyToken, cancelBooking);
 router.post("/bookings/:bookingId/rebook", verifyToken, reBooking);
 router.post("/complaints", verifyToken, doComplaints);
 router.get("/complaints-history", verifyToken, getComplaintsHistory);
+router.put(
+  "/payment/pay-now/:booking_id",
+  verifyToken,
+  upload.fields([{ name: "proof_photo", maxCount: 1 }]),
+  payNow
+);
+
 module.exports = router;

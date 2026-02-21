@@ -17,41 +17,71 @@ app.use(body_parser.json());
 app.use(body_parser.urlencoded({ extended: true }));
 app.use(
   helmet({
-    contentSecurityPolicy: false, 
+    contentSecurityPolicy: false,
   })
 );
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://van-pooling-front.vercel.app",
+];
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://van-pooling-front.vercel.app"],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })
 );
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.use("/uploads", (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+});
+
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders: (res, filePath, stat) => {
+      const origin = res.req && res.req.headers && res.req.headers.origin;
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Vary", "Origin");
+      }
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
+app.use(
+  "/uploads",
+  express.static(path.resolve("uploads"))
+);
+
+console.log("Serving uploads from:", path.join(__dirname, "uploads"));
+
+// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // routes
 app.get("/swagger.json", (req, res) => res.json(swaggerSpec));
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use("/api/auth", authLimiter, require("./routes/auth/authRoute"));
-app.use("/api/users", apiLimiter, require("./routes/users/userRoutes"));
-app.use("/api/parents", apiLimiter, require("./routes/parents/parentRoute"));
-app.use(
-  "/api/payments",
-  apiLimiter,
-  require("./routes/payments/paymentRoutes")
-);
-app.use(
-  "/api/bookings",
-  apiLimiter,
-  require("./routes/bookings/bookingRoutes")
-);
-app.use("/api/vans", apiLimiter, require("./routes/vans/vanRoutes"));
-app.use("/api/guards", apiLimiter, require("./routes/guards/guardRoutes"));
-app.use("/api/drivers", apiLimiter, require("./routes/drivers/driverRoutes"));
-app.use("/api/admin", apiLimiter, require("./routes/admin/adminRoutes"));
-app.use("/api/schools", apiLimiter, require("./routes/schools/schoolRoutes"));
+app.use("/api/auth", require("./routes/auth/authRoute"));
+app.use("/api/users", require("./routes/users/userRoutes"));
+app.use("/api/parents", require("./routes/parents/parentRoute"));
+app.use("/api/payments", require("./routes/payments/paymentRoutes"));
+app.use("/api/bookings", require("./routes/bookings/bookingRoutes"));
+app.use("/api/vans", require("./routes/vans/vanRoutes"));
+app.use("/api/guards", require("./routes/guards/guardRoutes"));
+app.use("/api/drivers", require("./routes/drivers/driverRoutes"));
+app.use("/api/admin", require("./routes/admin/adminRoutes"));
+app.use("/api/schools", require("./routes/schools/schoolRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the FYP Backend API");

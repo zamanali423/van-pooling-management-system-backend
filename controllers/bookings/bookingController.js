@@ -16,8 +16,10 @@ const getBookings = async (req, res) => {
         u.full_name AS driver_name,
         s.address AS van_address,
         s.start_time-Interval '30 minutes' as pick_up_time,
-        s.end_time as drop_off_time
+        s.end_time as drop_off_time,
+        p.payment_status
       FROM bookings b
+      JOIN cash_payments p ON p.booking_id = b.id
       JOIN children c ON c.id = b.child_id
       JOIN vans v ON v.id = b.van_id
       JOIN schools s ON s.id = c.school_id
