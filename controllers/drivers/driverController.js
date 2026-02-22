@@ -136,9 +136,14 @@ viewAssignedStudents = async (req, res) => {
     SELECT 
       c.id,c.full_name,
       u.full_name AS parent_name,
-      b.id AS booking_id
+      b.id AS booking_id,
+      s.id AS school_id,
+      s.address AS school_address,
+      s.start_time - INTERVAL '40 minutes' AS pickup_time,
+      s.end_time AS drop_off_time
     FROM bookings b
     JOIN children c ON c.id=b.child_id
+    JOIN schools s ON s.id=c.school_id
     JOIN users u ON u.id=c.parent_id
     JOIN vans v ON v.id=b.van_id
     WHERE v.driver_id=$1 AND b.status='ACTIVE'
@@ -320,13 +325,27 @@ getEarningByYear = async (req, res) => {
   try {
     const q = await pool.query(
       `
-    SELECT TO_CHAR(date_trunc('month',payment_date),'YYYY-MM') AS month,
-           SUM(amount) total
-    FROM cash_payments cp
-    JOIN bookings b ON b.id=cp.booking_id
-    JOIN vans v ON v.id=b.van_id
-    WHERE v.driver_id=$1 AND payment_date>=CURRENT_DATE-INTERVAL '12 months'
-    GROUP BY 1 ORDER BY 1
+    SELECT 
+    TO_CHAR(date_trunc('month', cp.payment_date), 'YYYY-MM') AS month,
+
+    SUM(cp.amount) AS total,
+
+    COUNT(DISTINCT r.id) AS route_count,
+
+    COUNT(DISTINCT b.child_id) AS child_count
+
+FROM cash_payments cp
+JOIN bookings b ON b.id = cp.booking_id
+JOIN vans v ON v.id = b.van_id
+LEFT JOIN routes r ON r.van_id = v.id
+
+WHERE v.driver_id = $1
+  AND cp.payment_date >= CURRENT_DATE - INTERVAL '12 months'
+
+GROUP BY date_trunc('month', cp.payment_date)
+
+ORDER BY month;
+
   `,
       [req.user.id]
     );

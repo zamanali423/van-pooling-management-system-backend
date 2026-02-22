@@ -12,8 +12,9 @@ const registerAuth = z.object({
     .regex(/[A-Z]/, "Password Must contain one uppercase letter")
     .regex(/[0-9]/, "Password Must contain one number"),
   phone: z
-    .number()
-    .min(10, "Phone must be at least 10 characters"),
+    .string()
+    .min(10, "Phone must be at least 10 characters")
+    .regex(/^\d+$/, "Phone must contain only digits"),
   role: z.enum(['ADMIN','DRIVER','PARENT','GUARD','SCHOOL'], {
     errorMap: (issue) => ({
       message: "Role must be ADMIN, DRIVER, PARENT, GUARD, or SCHOOL"
