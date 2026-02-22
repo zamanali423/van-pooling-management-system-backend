@@ -15,6 +15,7 @@ const {
   getFeedbackHistory,
   doComplaints,
   getComplaintsHistory,
+  allStudents,
 } = require("../../controllers/drivers/driverController");
 const { validateRequest } = require("../../middlewares/errorsHandling");
 const {
@@ -56,5 +57,7 @@ router.get("/feedback-history", verifyToken, getFeedbackHistory);
 router.post("/complaints", verifyToken, doComplaints);
 router.get("/complaints-history", verifyToken, getComplaintsHistory);
 router.post("/add-vans", verifyToken, addVansByDriver);
+router.get("/all-students", verifyToken, allStudents);
+
 
 module.exports = router;

@@ -25,13 +25,57 @@ getDriverRoutes = async (req, res) => {
   try {
     const r = await pool.query(
       `
-    SELECT r.*, s.name AS school
-    FROM routes r
-    JOIN schools s ON s.id=r.school_id
-    JOIN vans v ON v.id=r.van_id
-    WHERE v.driver_id=$1`,
+      SELECT 
+        R.id,
+        R.name,
+        R.is_active,
+
+        -- School Info
+        JSONB_BUILD_OBJECT(
+          'id', S.id,
+          'address', S.address,
+          'start_time', S.start_time,
+          'end_time', S.end_time
+        ) AS school,
+
+        -- Stops Count
+        (
+          SELECT COUNT(*) 
+          FROM route_stops RS 
+          WHERE RS.route_id = R.id
+        ) AS total_stops,
+
+        -- Students Count (active bookings in this van)
+        (
+          SELECT COUNT(*) 
+          FROM bookings B
+          WHERE B.van_id = R.van_id
+          AND B.status = 'ACTIVE'
+        ) AS total_students,
+
+        -- Ordered Stops
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'sequence_no', RS.sequence_no,
+              'latitude', RS.latitude,
+              'longitude', RS.longitude
+            )
+            ORDER BY RS.sequence_no
+          )
+          FROM route_stops RS
+          WHERE RS.route_id = R.id
+        ) AS stops
+
+      FROM routes R
+      JOIN vans V ON V.id = R.van_id
+      JOIN schools S ON S.id = R.school_id
+
+      WHERE V.driver_id = $1
+      `,
       [req.user.id]
     );
+
     res.json({ routes: r.rows });
   } catch (error) {
     return res.status(500).json({
@@ -110,6 +154,96 @@ viewAssignedStudents = async (req, res) => {
   }
 };
 
+allStudents = async (req, res) => {
+  try {
+    const q = await pool.query(
+      `
+     SELECT 
+    TO_JSONB(C) AS child_info,
+
+    JSONB_BUILD_OBJECT(
+        'id', S.id,
+        'address', S.address,
+        'pickup_time', S.start_time - INTERVAL '30 minutes',
+        'drop_off_time', S.end_time
+    ) AS school_info,
+
+    JSONB_BUILD_OBJECT(
+        'id', R.id,
+        'name', R.name
+    ) AS route_info,
+
+    JSONB_BUILD_OBJECT(
+        'van_id', B.van_id,
+        'status', B.status,
+        'booked_at', B.booked_at
+    ) AS booking_info,
+
+    JSONB_BUILD_OBJECT(
+        'id', PU.id,
+        'full_name', PU.full_name,
+        'email', PU.email,
+        'phone', PU.phone,
+        'role', PU.role
+    ) AS parent_data,
+
+    JSONB_BUILD_OBJECT(
+        'id', DU.id,
+        'full_name', DU.full_name,
+        'email', DU.email,
+        'phone', DU.phone,
+        'role', DU.role
+    ) AS driver_data,
+
+    -- Attendance Info (scalar JSON)
+    JSONB_BUILD_OBJECT(
+        'total_working_days', COALESCE(aw.total_working_days, 0),
+        'present_days', COALESCE(aw.present_days, 0),
+        'attendance_percentage', COALESCE(aw.attendance_percentage, 0)
+    ) AS attendance_info
+
+FROM bookings B
+JOIN children C ON C.id = B.child_id
+JOIN vans V ON V.id = B.van_id
+JOIN users DU ON DU.id = V.driver_id
+JOIN users PU ON PU.id = C.parent_id
+JOIN routes R ON R.van_id = V.id
+JOIN schools S ON S.id = R.school_id
+
+-- Attendance subquery per child
+LEFT JOIN LATERAL (
+    SELECT 
+        COUNT(DISTINCT SWD.working_date) AS total_working_days,
+        COUNT(DISTINCT DATE(GV.verification_time)) AS present_days,
+        ROUND(
+            (COUNT(DISTINCT DATE(GV.verification_time)) * 100.0) /
+            NULLIF(COUNT(DISTINCT SWD.working_date), 0),
+            2
+        ) AS attendance_percentage
+    FROM school_working_days SWD
+    LEFT JOIN guard_verifications GV 
+        ON GV.child_id = C.id 
+        AND DATE(GV.verification_time) = SWD.working_date
+    WHERE SWD.school_id = S.id
+      AND SWD.is_working = TRUE
+) aw ON TRUE
+
+WHERE V.driver_id = $1
+  AND B.status = 'ACTIVE';
+
+      `,
+      [req.user.id]
+    );
+
+    res.json({ students: q.rows });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
 const viewStudentDetails = async (req, res) => {
   try {
     const driverId = req.user.id;
@@ -118,42 +252,57 @@ const viewStudentDetails = async (req, res) => {
     const result = await pool.query(
       `
       SELECT 
-        ROW_TO_JSON(C) AS child_info,
+        -- Child Info
+        TO_JSONB(C) AS child_info,
 
-        JSON_BUILD_OBJECT(
+        -- School Info
+        JSONB_BUILD_OBJECT(
+          'id', S.id,
+          'address', S.address,
+          'pickup_time', S.start_time - INTERVAL '30 minutes',
+          'drop_off_time', S.end_time
+        ) AS school_info,
+
+        -- Route Info
+        JSONB_BUILD_OBJECT(
+          'id', R.id,
+          'name', R.name
+        ) AS route_info,
+
+        -- Booking Info
+        JSONB_BUILD_OBJECT(
           'van_id', B.van_id,
           'status', B.status,
-          'booking_date', B.booking_date
+          'booked_at', B.booked_at
         ) AS booking_info,
 
-        JSON_BUILD_OBJECT(
-          'parent_address', P.address,
-          'user', JSON_BUILD_OBJECT(
-            'id', U.id,
-            'username', U.username,
-            'email', U.email,
-            'contact', U.contact,
-            'role', U.role
-          )
+        -- Parent Info
+        JSONB_BUILD_OBJECT(
+          'id', PU.id,
+          'full_name', PU.full_name,
+          'email', PU.email,
+          'phone', PU.phone,
+          'role', PU.role
         ) AS parent_data,
 
-        JSON_BUILD_OBJECT(
-          'driver_id', D.id,
-          'username', DU.username,
+        -- Driver Info
+        JSONB_BUILD_OBJECT(
+          'id', DU.id,
+          'full_name', DU.full_name,
           'email', DU.email,
-          'contact', DU.contact,
+          'phone', DU.phone,
           'role', DU.role
         ) AS driver_data
 
       FROM bookings B
       JOIN children C ON C.id = B.child_id
-      JOIN parents P ON C.parent_id = P.id
-      JOIN users U ON U.id = P.user_id
       JOIN vans V ON V.id = B.van_id
-      JOIN drivers D ON D.id = V.driver_id
-      JOIN users DU ON DU.id = D.user_id
+      JOIN users DU ON DU.id = V.driver_id
+      JOIN users PU ON PU.id = C.parent_id
+      JOIN routes R ON R.van_id = V.id
+      JOIN schools S ON S.id = R.school_id
 
-      WHERE V.driver_id = $1 AND C.id = $2
+      WHERE DU.driver_id = $1 AND C.id = $2
     `,
       [driverId, childId]
     );
@@ -397,6 +546,7 @@ module.exports = {
   getFeedbackHistory,
   doComplaints,
   getComplaintsHistory,
+  allStudents,
 };
 
 // getEarningByMonth = async (req, res) => {
