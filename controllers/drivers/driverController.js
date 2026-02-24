@@ -332,7 +332,8 @@ getEarningByYear = async (req, res) => {
 
     COUNT(DISTINCT r.id) AS route_count,
 
-    COUNT(DISTINCT b.child_id) AS child_count
+    COUNT(DISTINCT b.child_id) AS child_count,
+    (SELECT COUNT(DISTINCT b.child_id) FROM bookings b WHERE b.status = 'ACTIVE') AS active_child_count
 
 FROM cash_payments cp
 JOIN bookings b ON b.id = cp.booking_id
@@ -550,6 +551,22 @@ getComplaintsHistory = async (req, res) => {
   }
 };
 
+delayReports = async (req, res) => {
+  try {
+    const driver_id = req.user.id;
+    const reports = await pool.query(
+      `SELECT DR.*,R.name AS route_name FROM DELAY_REPORTS DR JOIN ROUTES R ON R.id=DR.route_id
+       WHERE DR.driver_id=$1 ORDER BY DR.reported_at DESC`,
+      [driver_id]
+    );
+    return res.status(200).json({ reports: reports.rows });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   createNewRoute,
   getDriverRoutes,
@@ -566,6 +583,7 @@ module.exports = {
   doComplaints,
   getComplaintsHistory,
   allStudents,
+  delayReports,
 };
 
 // getEarningByMonth = async (req, res) => {

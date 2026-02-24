@@ -16,6 +16,7 @@ const {
   doComplaints,
   getComplaintsHistory,
   allStudents,
+  delayReports,
 } = require("../../controllers/drivers/driverController");
 const { validateRequest } = require("../../middlewares/errorsHandling");
 const {
@@ -58,6 +59,6 @@ router.post("/complaints", verifyToken, doComplaints);
 router.get("/complaints-history", verifyToken, getComplaintsHistory);
 router.post("/add-vans", verifyToken, addVansByDriver);
 router.get("/all-students", verifyToken, allStudents);
-
+router.get("/delay-reports", verifyToken, delayReports);
 
 module.exports = router;

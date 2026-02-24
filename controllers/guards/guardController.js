@@ -11,7 +11,9 @@ const getActiveVans = async (req, res) => {
       SELECT DISTINCT
         V.*,
         U.username AS driver_name,
-        (SELECT COUNT(*) FROM children C WHERE C.van_id = V.id) AS total_children
+        (SELECT COUNT(DISTINCT C.*) FROM children C WHERE C.van_id = V.id) AS total_students,
+        COUNT(DISTINCT V.id) AS total_vans,
+        (SELECT S.start_time, S.end_time FROM schools S WHERE S.id = R.school_id) AS school_time
       FROM guards G
       JOIN routes R ON R.school_id = G.school_id
       JOIN vans V ON V.id = R.van_id
