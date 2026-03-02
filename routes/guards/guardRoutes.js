@@ -7,6 +7,7 @@ const {
   verifyToAllStudents,
   getAllStudents,
   getStudentDetails,
+  recentVerifiedStudents,
 } = require("../../controllers/guards/guardController");
 const { getVanDetails } = require("../../controllers/vans/vanController");
 const router = express.Router();
@@ -18,5 +19,6 @@ router.put("/verify-all-students", verifyToken, verifyToAllStudents);
 router.get("/all-students", verifyToken, getAllStudents);
 router.get("/student-details/:studentId", verifyToken, getStudentDetails);
 router.get("/get-van-details/:vanId", verifyToken, getVanDetails);
+router.get("/recent-verified-students", verifyToken, recentVerifiedStudents);
 
 module.exports = router;

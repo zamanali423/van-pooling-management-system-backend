@@ -20,7 +20,7 @@ const registerUser = async (req, res) => {
     // Check for duplicate email
     const emailExists = await pool.query(
       "SELECT id FROM users WHERE LOWER(email)=LOWER($1)",
-      [email]
+      [email],
     );
 
     if (emailExists.rows.length > 0) {
@@ -33,7 +33,7 @@ const registerUser = async (req, res) => {
 
     const phoneExists = await pool.query(
       "SELECT id FROM users WHERE phone=$1",
-      [phone]
+      [phone],
     );
 
     if (phoneExists.rows.length > 0) {
@@ -54,7 +54,7 @@ const registerUser = async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,COALESCE($6,''),false)
       RETURNING id
     `,
-      [full_name, email, phone, hash, role, profile_photo]
+      [full_name, email, phone, hash, role, profile_photo],
     );
 
     const userId = user.rows[0].id;
@@ -72,7 +72,7 @@ const registerUser = async (req, res) => {
           req.files?.vehicle_docs?.[0]?.path,
           req.files?.vehicle_photo?.[0]?.path,
           req.files?.number_plate?.[0]?.path,
-        ]
+        ],
       );
     }
 
@@ -82,7 +82,7 @@ const registerUser = async (req, res) => {
       INSERT INTO users_otp(user_id,otp,expires_at)
       VALUES($1,$2,NOW() + interval '5 minutes')
     `,
-      [userId, otp]
+      [userId, otp],
     );
 
     await pool.query("COMMIT");
@@ -109,18 +109,25 @@ const loginUser = async (req, res) => {
     SELECT u.id,u.full_name,u.email,u.phone,u.password,u.is_verified,u.role,da.is_approved
     FROM users u LEFT JOIN driver_approvals da ON u.id=da.driver_id WHERE email=$1
   `,
-      [email]
+      [email],
     );
 
     if (!u.rowCount)
       return res.status(400).json({ message: "Invalid credentials" });
 
     const user = u.rows[0];
+    const driverApproval = await pool.query(
+      "SELECT is_approved FROM driver_approvals WHERE driver_id=$1",
+      [user.id],
+    );
 
     if (!user.is_verified)
       return res.status(403).json({ message: "Verify OTP first" });
-    if (user.role === "DRIVER" && !user.is_approved)
-      return res.status(403).json({ message: "Awaiting school approval" });
+    if (user.role === "DRIVER" && !driverApproval)
+      return res.status(403).json({
+        message:
+          "Police record verification is in progress. Please try again later.",
+      });
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok)
@@ -129,7 +136,7 @@ const loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || "1d" }
+      { expiresIn: process.env.JWT_EXPIRY || "1d" },
     );
 
     try {
@@ -156,7 +163,7 @@ const verifyOtp = async (req, res) => {
     JOIN users_otp o ON o.user_id=u.id
     WHERE u.email=$1 AND o.otp=$2 AND o.status='PENDING' AND o.expires_at>NOW()
   `,
-      [email, otp]
+      [email, otp],
     );
 
     if (!r.rowCount)
@@ -167,7 +174,7 @@ const verifyOtp = async (req, res) => {
     ]);
     await pool.query(
       "UPDATE users_otp SET status='VERIFIED', otp='' WHERE user_id=$1",
-      [r.rows[0].id]
+      [r.rows[0].id],
     );
 
     return res.status(200).json({ message: "OTP verified" });
@@ -189,13 +196,13 @@ const resendOtp = async (req, res) => {
       INSERT INTO users_otp(user_id,otp,expires_at)
       VALUES($1,$2,NOW() + interval '5 minutes')
     `,
-      [userId, otp]
+      [userId, otp],
     );
 
     try {
       const user = await pool.query(
         "SELECT full_name, email FROM users WHERE id=$1",
-        [userId]
+        [userId],
       );
       if (user.rowCount) {
         await sendOtpEmail(user.rows[0].email, otp, user.rows[0].full_name);
@@ -215,7 +222,7 @@ const forgotPassword = async (req, res) => {
     const { email } = req.body;
     const r = await pool.query(
       "SELECT id, full_name FROM users WHERE email=$1",
-      [email]
+      [email],
     );
     if (!r.rowCount) return res.status(400).json({ message: "User not found" });
     const userId = r.rows[0].id;
@@ -234,12 +241,9 @@ const forgotPassword = async (req, res) => {
     } catch (emailError) {
       console.error("Failed to send OTP email:", emailError);
     }
-    res
-      .status(200)
-      .json({
-        message:
-          "Check your email, link sent for password reset on your email.",
-      });
+    res.status(200).json({
+      message: "Check your email, link sent for password reset on your email.",
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -251,7 +255,7 @@ const resetPassword = async (req, res) => {
     const r = await pool.query(
       `
     SELECT id FROM users WHERE email=$1`,
-      [email]
+      [email],
     );
     if (!r.rowCount) return res.status(404).json({ message: "User not found" });
     const userId = r.rows[0].id;

@@ -15,9 +15,9 @@ const registerAuth = z.object({
     .string()
     .min(10, "Phone must be at least 10 characters")
     .regex(/^\d+$/, "Phone must contain only digits"),
-  role: z.enum(['ADMIN','DRIVER','PARENT','GUARD','SCHOOL'], {
+  role: z.enum(['ADMIN','DRIVER','PARENT','GUARD','SCHOOL','POLICE'], {
     errorMap: (issue) => ({
-      message: "Role must be ADMIN, DRIVER, PARENT, GUARD, or SCHOOL"
+      message: "Role must be ADMIN, DRIVER, PARENT, GUARD, SCHOOL, or POLICE"
     })
   }),
 });
