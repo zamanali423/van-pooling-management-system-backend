@@ -4,15 +4,22 @@ const fs = require("fs");
 
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
 
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Create user-specific directory
     const userId = req.user?.id || "temp";
     let dir;
-    
-    if (req.originalUrl.includes('/drivers')) {
+
+    if (req.originalUrl.includes("/drivers")) {
       dir = path.join(UPLOAD_DIR, "drivers", userId.toString());
-    } else if (req.originalUrl.includes('/parents') || req.originalUrl.includes('/children')) {
+    } else if (
+      req.originalUrl.includes("/parents") ||
+      req.originalUrl.includes("/children")
+    ) {
       dir = path.join(UPLOAD_DIR, "children", userId.toString());
     } else {
       dir = path.join(UPLOAD_DIR, "temp");
@@ -44,7 +51,7 @@ const fileFilter = (req, file, cb) => {
   if (!allowedTypes.includes(file.mimetype)) {
     return cb(
       new Error("Only JPG, PNG, WEBP images and PDF files are allowed"),
-      false
+      false,
     );
   }
 
