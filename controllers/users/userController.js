@@ -11,8 +11,9 @@ getUser = async (req, res) => {
 
 editUserDetails = async (req, res) => {
   try {
-    const { full_name, phone, email, password, profile_photo } = req.body;
+    const { full_name, phone, email, password } = req.body;
     const user_id = req.user.id;
+    const profile_photo= req?.files?.profile_photo?.[0]?.path;
 
     const exists = await pool.query("SELECT id FROM users WHERE id=$1", [
       user_id,
