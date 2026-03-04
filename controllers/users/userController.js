@@ -1,5 +1,6 @@
 const { pool } = require("../../utils/dbConnection");
 const bcrypt = require("bcryptjs");
+const { uploadBufferToCloudinary } = require("../../middlewares/cloudinary");
 
 getUser = async (req, res) => {
   try {
@@ -13,7 +14,6 @@ editUserDetails = async (req, res) => {
   try {
     const { full_name, phone, email, password } = req.body;
     const user_id = req.user.id;
-    const profile_photo= req?.files?.profile_photo?.[0]?.path;
 
     const exists = await pool.query("SELECT id FROM users WHERE id=$1", [
       user_id,
@@ -24,6 +24,22 @@ editUserDetails = async (req, res) => {
     let hash = null;
     if (password) {
       hash = await bcrypt.hash(password, 10);
+    }
+
+    // Upload profile photo to Cloudinary if provided
+    let profile_photo = null;
+    if (req.files?.profile_photo?.[0]) {
+      try {
+        const result = await uploadBufferToCloudinary(
+          req.files.profile_photo[0].buffer,
+          req.files.profile_photo[0].originalname,
+          "users/profile_photos"
+        );
+        profile_photo = result.secure_url;
+      } catch (uploadError) {
+        console.error("Profile photo upload failed:", uploadError.message);
+        return res.status(500).json({ message: "File upload failed", error: uploadError.message });
+      }
     }
 
     const result = await pool.query(

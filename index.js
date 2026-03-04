@@ -36,22 +36,6 @@ app.use(
   })
 );
 
-
-// app.use(
-//   cors({
-//     origin: function (origin, callback) {
-//       if (!origin) return callback(null, true); // allow non-browser tools
-
-//       if (allowedOrigins.includes(origin)) {
-//         callback(null, true);
-//       } else {
-//         callback(new Error("Not allowed by CORS"));
-//       }
-//     },
-//     credentials: true,
-//   })
-// );
-
 app.use("/uploads", (req, res, next) => {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
@@ -99,7 +83,6 @@ app.use("/api/guards", require("./routes/guards/guardRoutes"));
 app.use("/api/drivers", require("./routes/drivers/driverRoutes"));
 app.use("/api/admin", require("./routes/admin/adminRoutes"));
 app.use("/api/schools", require("./routes/schools/schoolRoutes"));
-app.use("/api/police", require("./routes/police/policeRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the FYP Backend API");
@@ -116,6 +99,13 @@ const startServer = async () => {
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
+    // if(!process.env.VERCEL){
+    //   await app.listen(port);
+    //   console.log(`Server is running on port ${port} vercel`);
+    // }else{
+    //   await app.init();
+    //   console.log(`Server is running on port ${port} init`);
+    // }
   } catch (err) {
     console.error("Failed to start server:", err.message);
     process.exit(1);

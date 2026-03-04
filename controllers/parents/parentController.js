@@ -1,4 +1,5 @@
 const { pool } = require("../../utils/dbConnection");
+const { uploadBufferToCloudinary } = require("../../middlewares/cloudinary");
 
 addChildren = async (req, res) => {
   try {
@@ -29,9 +30,24 @@ addChildren = async (req, res) => {
     if (!school.rows.length)
       return res.status(400).json({ message: "School service inactive" });
 
-    let child_pic = req.files?.child_pic?.[0]?.path;
     const requiresGirlsOnly =
       requires_girls_only === "true" || requires_girls_only === true;
+
+    // Upload child photo to Cloudinary
+    let child_pic = "";
+    if (req.files?.child_pic?.[0]) {
+      try {
+        const result = await uploadBufferToCloudinary(
+          req.files.child_pic[0].buffer,
+          req.files.child_pic[0].originalname,
+          "children/photos"
+        );
+        child_pic = result.secure_url;
+      } catch (uploadError) {
+        console.error("Child photo upload failed:", uploadError.message);
+        return res.status(500).json({ message: "File upload failed", error: uploadError.message });
+      }
+    }
 
     const child = await pool.query(
       `INSERT INTO children (parent_id, school_id, full_name, date_of_birth, gender, grade, emergency_contact, disease,
@@ -157,10 +173,20 @@ updateChild = async (req, res) => {
       index++;
     }
 
-    if (req.files?.child_pic?.[0]?.path) {
-      updates.push(`child_pic=$${index}`);
-      values.push(req.files.child_pic[0].path);
-      index++;
+    if (req.files?.child_pic?.[0]) {
+      try {
+        const result = await uploadBufferToCloudinary(
+          req.files.child_pic[0].buffer,
+          req.files.child_pic[0].originalname,
+          "children/photos"
+        );
+        updates.push(`child_pic=$${index}`);
+        values.push(result.secure_url);
+        index++;
+      } catch (uploadError) {
+        console.error("Child photo upload failed:", uploadError.message);
+        return res.status(500).json({ message: "File upload failed", error: uploadError.message });
+      }
     }
 
     if (updates.length === 0) {
