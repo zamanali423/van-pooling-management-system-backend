@@ -1,5 +1,4 @@
 const { pool } = require("../../utils/dbConnection");
-const { uploadBufferToCloudinary } = require("../../middlewares/cloudinary");
 
 getPaymentHistory = async (req, res) => {
   try {
@@ -42,8 +41,9 @@ payNow = async (req, res) => {
     const booking_id = req.params.booking_id;
     const parent_id = req.user.id;
 
-    if (!req.files?.proof_photo?.[0]) {
-      await pool.query("ROLLBACK");
+    const proof_photo = req?.files?.proof_photo?.[0]?.path;
+
+    if (!proof_photo) {
       return res.status(400).json({ message: "Payment proof required" });
     }
 
@@ -57,21 +57,6 @@ payNow = async (req, res) => {
     if (!isBooking.rows.length) {
       await pool.query("ROLLBACK");
       return res.status(400).json({ message: "Booking not exists" });
-    }
-
-    // Upload payment proof to Cloudinary
-    let proof_photo = "";
-    try {
-      const result = await uploadBufferToCloudinary(
-        req.files.proof_photo[0].buffer,
-        req.files.proof_photo[0].originalname,
-        "payments/proofs"
-      );
-      proof_photo = result.secure_url;
-    } catch (uploadError) {
-      await pool.query("ROLLBACK");
-      console.error("Payment proof upload failed:", uploadError.message);
-      return res.status(500).json({ message: "File upload failed", error: uploadError.message });
     }
 
     await pool.query(

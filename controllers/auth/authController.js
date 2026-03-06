@@ -1,7 +1,6 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { pool } = require("../../utils/dbConnection");
-const { uploadBufferToCloudinary } = require("../../middlewares/cloudinary");
 const {
   sendOtpEmail,
   sendWelcomeEmail,
@@ -49,93 +48,18 @@ const registerUser = async (req, res) => {
 
     await pool.query("BEGIN");
 
-    // Upload profile photo to Cloudinary
-    let profilePhotoUrl = "";
-    if (req.files?.profile_photo?.[0]) {
-      try {
-        const result = await uploadBufferToCloudinary(
-          req.files.profile_photo[0].buffer,
-          req.files.profile_photo[0].originalname,
-          "users/profile_photos"
-        );
-        profilePhotoUrl = result.secure_url;
-      } catch (uploadError) {
-        console.error("Profile photo upload failed:", uploadError.message);
-        await pool.query("ROLLBACK");
-        return res.status(500).json({ message: "File upload failed", error: uploadError.message });
-      }
-    }
-
     const user = await pool.query(
       `
       INSERT INTO users(full_name,email,phone,password,role,profile_photo,is_verified)
       VALUES ($1,$2,$3,$4,$5,COALESCE($6,''),false)
       RETURNING id
     `,
-      [full_name, email, phone, hash, role, profilePhotoUrl],
+      [full_name, email, phone, hash, role, profile_photo],
     );
 
     const userId = user.rows[0].id;
 
     if (role === "DRIVER") {
-      // Upload driver documents to Cloudinary
-      let driverLicense = "";
-      let idCard = "";
-      let vehicleDocs = "";
-      let vehiclePhoto = "";
-      let numberPlate = "";
-
-      try {
-        if (req.files?.driver_license?.[0]) {
-          const result = await uploadBufferToCloudinary(
-            req.files.driver_license[0].buffer,
-            req.files.driver_license[0].originalname,
-            "drivers/licenses"
-          );
-          driverLicense = result.secure_url;
-        }
-
-        if (req.files?.id_card?.[0]) {
-          const result = await uploadBufferToCloudinary(
-            req.files.id_card[0].buffer,
-            req.files.id_card[0].originalname,
-            "drivers/id_cards"
-          );
-          idCard = result.secure_url;
-        }
-
-        if (req.files?.vehicle_docs?.[0]) {
-          const result = await uploadBufferToCloudinary(
-            req.files.vehicle_docs[0].buffer,
-            req.files.vehicle_docs[0].originalname,
-            "drivers/vehicle_docs"
-          );
-          vehicleDocs = result.secure_url;
-        }
-
-        if (req.files?.vehicle_photo?.[0]) {
-          const result = await uploadBufferToCloudinary(
-            req.files.vehicle_photo[0].buffer,
-            req.files.vehicle_photo[0].originalname,
-            "drivers/vehicle_photos"
-          );
-          vehiclePhoto = result.secure_url;
-        }
-
-        if (req.files?.number_plate?.[0]) {
-          const result = await uploadBufferToCloudinary(
-            req.files.number_plate[0].buffer,
-            req.files.number_plate[0].originalname,
-            "drivers/number_plates"
-          );
-          numberPlate = result.secure_url;
-        }
-      } catch (uploadError) {
-        console.error("Driver document upload failed:", uploadError.message);
-        await pool.query("ROLLBACK");
-        return res.status(500).json({ message: "File upload failed", error: uploadError.message });
-      }
-
       await pool.query(
         `
         INSERT INTO driver_documents(driver_id,driver_license,id_card,vehicle_docs,vehicle_photo,number_plate,is_verified)
@@ -143,11 +67,11 @@ const registerUser = async (req, res) => {
       `,
         [
           userId,
-          driverLicense,
-          idCard,
-          vehicleDocs,
-          vehiclePhoto,
-          numberPlate,
+          req.files?.driver_license?.[0]?.path,
+          req.files?.id_card?.[0]?.path,
+          req.files?.vehicle_docs?.[0]?.path,
+          req.files?.vehicle_photo?.[0]?.path,
+          req.files?.number_plate?.[0]?.path,
         ],
       );
     }
