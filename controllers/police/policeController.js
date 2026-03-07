@@ -101,11 +101,7 @@ report = async (req, res) => {
       COUNT(CASE WHEN DA.status = 'REJECTED' THEN 1 END) AS total_rejected_drivers
       from driver_documents DD
       JOIN driver_approvals DA ON DA.driver_id=DD.driver_id
-      JOIN driver_police_verifications DPV ON DPV.driver_id=DD.driver_id
-      WHERE DPV.police_id=$1
-      GROUP BY DPV.police_id
       `,
-      [req.user.id],
     );
     await pool.query("COMMIT");
     res.json(report.rows[0]);
