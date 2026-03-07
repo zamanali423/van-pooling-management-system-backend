@@ -15,7 +15,7 @@ const registerUser = async (req, res) => {
       phone,
       password,
       role,
-      school_id,
+      branch_id,
       // school_name,
       // branch_name,
       // address,
@@ -26,8 +26,14 @@ const registerUser = async (req, res) => {
       // contact_number,
     } = req.body;
     const profile_photo = req.files?.profile_photo?.[0]?.path;
-
-    console.log("Registration attempt:", { full_name, email, phone, role,school_id });
+    console.log(req.body)
+    console.log("Registration attempt:", {
+      full_name,
+      email,
+      phone,
+      role,
+      branch_id,
+    });
 
     if (!full_name || !email || !phone || !password || !role)
       return res.status(400).json({ message: "Missing required fields" });
@@ -78,6 +84,12 @@ const registerUser = async (req, res) => {
 
     const userId = user.rows[0].id;
 
+    if (role === "DRIVER" && !branch_id) {
+      return res.status(400).json({
+        message: "School is required for drivers",
+      });
+    }
+
     if (role === "DRIVER") {
       await pool.query(
         `
@@ -96,10 +108,10 @@ const registerUser = async (req, res) => {
 
       await pool.query(
         `
-        INSERT INTO driver_approvals(driver_id,school_id,status,created_at)
+        INSERT INTO driver_approvals(driver_id,branch_id,status,created_at)
         VALUES ($1,$2,'PENDING',CURRENT_TIMESTAMP)
       `,
-        [userId, school_id],
+        [userId, branch_id],
       );
     }
 

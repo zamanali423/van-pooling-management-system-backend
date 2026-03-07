@@ -83,6 +83,7 @@ app.use("/api/guards", require("./routes/guards/guardRoutes"));
 app.use("/api/drivers", require("./routes/drivers/driverRoutes"));
 app.use("/api/admin", require("./routes/admin/adminRoutes"));
 app.use("/api/schools", require("./routes/schools/schoolRoutes"));
+app.use("/api/police", require("./routes/police/policeRoutes"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the FYP Backend API");
