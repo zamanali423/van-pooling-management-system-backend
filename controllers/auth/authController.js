@@ -15,6 +15,7 @@ const registerUser = async (req, res) => {
       phone,
       password,
       role,
+      school_id,
       // school_name,
       // branch_name,
       // address,
@@ -26,19 +27,23 @@ const registerUser = async (req, res) => {
     } = req.body;
     const profile_photo = req.files?.profile_photo?.[0]?.path;
 
-    console.log("Registration attempt:", { full_name, email, phone, role });
+    console.log("Registration attempt:", { full_name, email, phone, role,school_id });
 
     if (!full_name || !email || !phone || !password || !role)
       return res.status(400).json({ message: "Missing required fields" });
 
     // Check for duplicate email
     const emailExists = await pool.query(
-      "SELECT id FROM users WHERE LOWER(email)=LOWER($1)",
+      "SELECT id,email FROM users WHERE LOWER(email)=LOWER($1)",
       [email],
     );
 
     if (emailExists.rows.length > 0) {
-      console.log("Email already exists:", email);
+      console.log(
+        "Email already exists:",
+        emailExists.rows[0].id,
+        emailExists.rows[0].email,
+      );
       return res.status(409).json({
         message: "Email already registered",
         field: "email",
@@ -83,10 +88,18 @@ const registerUser = async (req, res) => {
           userId,
           req.files?.driver_license?.[0]?.path,
           req.files?.id_card?.[0]?.path,
-          req.files?.vehicle_docs?.[0]?.path,
+          req.files?.vehicle_registration?.[0]?.path,
           req.files?.vehicle_photo?.[0]?.path,
           req.files?.number_plate?.[0]?.path,
         ],
+      );
+
+      await pool.query(
+        `
+        INSERT INTO driver_approvals(driver_id,school_id,status,created_at)
+        VALUES ($1,$2,'PENDING',CURRENT_TIMESTAMP)
+      `,
+        [userId, school_id],
       );
     }
 
@@ -133,6 +146,7 @@ const registerUser = async (req, res) => {
 
     res.status(201).json({ message: "Registered. Verify OTP." });
   } catch (err) {
+    console.log(err);
     await pool.query("ROLLBACK");
     res.status(500).json({ error: err.message });
   }
