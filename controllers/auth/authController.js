@@ -192,7 +192,7 @@ const loginUser = async (req, res) => {
       return res.status(403).json({ message: "Verify OTP first" });
     if (
       user.role === "DRIVER" &&
-      driverApproval.rows[0]?.status !== "VERIFIED"
+      driverApproval.rows[0]?.status !== "APPROVED"
     ) {
       await pool.query("ROLLBACK");
       return res.status(403).json({

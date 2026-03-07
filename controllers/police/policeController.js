@@ -61,22 +61,12 @@ verifyDriver = async (req, res) => {
     await pool.query(
       `UPDATE driver_approvals SET status=$1, approved_at=CURRENT_TIMESTAMP,
        approved_by=$2 WHERE driver_id=$3`,
-      [is_approved ? "VERIFIED" : "REJECTED", req.user.id, driver_id],
+      [is_approved ? "APPROVED" : "REJECTED", req.user.id, driver_id],
     );
     await pool.query(
       `UPDATE driver_documents SET is_verified=$1, verified_at=CURRENT_TIMESTAMP, verified_by=$2 WHERE driver_id=$3`,
       [is_approved, req.user.id, driver_id],
     );
-    const police = await pool.query(
-      `UPDATE driver_police_verifications SET status=$1, verified_at=CURRENT_TIMESTAMP,police_id=$2 driver_id=$3 WHERE driver_id=$3`,
-      [is_approved ? "VERIFIED" : "REJECTED", req.user.id, driver_id],
-    );
-    if (police.rowCount === 0) {
-      await pool.query(
-        `INSERT INTO driver_police_verifications (driver_id, police_id, status, verified_at,created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [driver_id, req.user.id, is_approved ? "VERIFIED" : "REJECTED"],
-      );
-    }
     await pool.query("COMMIT");
     res.json({
       message: `Driver ${is_approved ? "approved" : "rejected"} successfully`,
@@ -97,8 +87,9 @@ report = async (req, res) => {
       COUNT(DD.vehicle_docs) AS total_drivers_vehicle_docs,
       COUNT(DD.vehicle_photo) AS total_drivers_vehicle_photo,
       COUNT(DD.number_plate) AS total_drivers_number_plate,
-      COUNT(CASE WHEN DA.status = 'VERIFIED' THEN 1 END) AS total_verified_drivers,
-      COUNT(CASE WHEN DA.status = 'REJECTED' THEN 1 END) AS total_rejected_drivers
+      COUNT(CASE WHEN DA.status = 'APPROVED' THEN 1 END) AS total_verified_drivers,
+      COUNT(CASE WHEN DA.status = 'REJECTED' THEN 1 END) AS total_rejected_drivers,
+      COUNT(CASE WHEN DA.status = 'PENDING' THEN 1 END) AS total_pending_drivers
       from driver_documents DD
       JOIN driver_approvals DA ON DA.driver_id=DD.driver_id
       `,
