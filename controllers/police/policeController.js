@@ -21,11 +21,7 @@ driverApplications = async (req, res) => {
     U.phone,
     U.created_at,
     DA.approved_at AS approval_date,
-    CASE 
-        WHEN DA.is_approved = true THEN 'VERIFIED'
-        WHEN DA.is_approved = false THEN 'REJECTED'
-        ELSE 'PENDING'
-        END AS status,
+    DA.status,
      ARRAY_AGG(DISTINCT V.number_plate) 
           FILTER (WHERE V.id IS NOT NULL) AS vans,
     JSONB_AGG(DISTINCT DD) FILTER (WHERE DD.id IS NOT NULL) AS driver_documents
@@ -41,7 +37,7 @@ driverApplications = async (req, res) => {
         U.email,
         U.phone,
         U.created_at,
-        DA.is_approved,
+        DA.status,
         DA.approved_at;
     `,
     );
@@ -63,13 +59,24 @@ verifyDriver = async (req, res) => {
   try {
     await pool.query("BEGIN");
     await pool.query(
-      "UPDATE driver_approvals SET is_approved=$1 WHERE driver_id=$2",
-      [is_approved, driver_id],
+      `UPDATE driver_approvals SET status=$1, approved_at=CURRENT_TIMESTAMP,
+       approved_by=$2 WHERE driver_id=$3`,
+      [is_approved ? "VERIFIED" : "REJECTED", req.user.id, driver_id],
     );
     await pool.query(
-      "UPDATE driver_documents SET is_verified=$1 WHERE driver_id=$2",
-      [is_approved, driver_id],
+      `UPDATE driver_documents SET is_verified=$1, verified_at=CURRENT_TIMESTAMP, verified_by=$2 WHERE driver_id=$3`,
+      [is_approved, req.user.id, driver_id],
     );
+    const police = await pool.query(
+      `UPDATE driver_police_verifications SET status=$1, verified_at=CURRENT_TIMESTAMP,police_id=$2 driver_id=$3 WHERE driver_id=$3`,
+      [is_approved ? "VERIFIED" : "REJECTED", req.user.id, driver_id],
+    );
+    if (police.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO driver_police_verifications (driver_id, police_id, status, verified_at,created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [driver_id, req.user.id, is_approved ? "VERIFIED" : "REJECTED"],
+      );
+    }
     await pool.query("COMMIT");
     res.json({
       message: `Driver ${is_approved ? "approved" : "rejected"} successfully`,
@@ -90,11 +97,15 @@ report = async (req, res) => {
       COUNT(DD.vehicle_docs) AS total_drivers_vehicle_docs,
       COUNT(DD.vehicle_photo) AS total_drivers_vehicle_photo,
       COUNT(DD.number_plate) AS total_drivers_number_plate,
-      COUNT(CASE WHEN DA.is_approved = true THEN 1 END) AS total_verified_drivers,
-      COUNT(CASE WHEN DA.is_approved = false THEN 1 END) AS total_rejected_drivers
+      COUNT(CASE WHEN DA.status = 'VERIFIED' THEN 1 END) AS total_verified_drivers,
+      COUNT(CASE WHEN DA.status = 'REJECTED' THEN 1 END) AS total_rejected_drivers
       from driver_documents DD
       JOIN driver_approvals DA ON DA.driver_id=DD.driver_id
+      JOIN driver_police_verifications DPV ON DPV.driver_id=DD.driver_id
+      WHERE DPV.police_id=$1
+      GROUP BY DPV.police_id
       `,
+      [req.user.id],
     );
     await pool.query("COMMIT");
     res.json(report.rows[0]);
@@ -105,3 +116,9 @@ report = async (req, res) => {
 };
 
 module.exports = { driverApplications, verifyDriver, report };
+
+// CASE
+//         WHEN DA.is_approved = true THEN 'VERIFIED'
+//         WHEN DA.is_approved = false THEN 'REJECTED'
+//         ELSE 'PENDING'
+//         END AS status,

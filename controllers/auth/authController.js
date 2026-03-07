@@ -9,7 +9,21 @@ const {
 
 const registerUser = async (req, res) => {
   try {
-    const { full_name, email, phone, password, role } = req.body;
+    const {
+      full_name,
+      email,
+      phone,
+      password,
+      role,
+      // school_name,
+      // branch_name,
+      // address,
+      // latitude,
+      // longitude,
+      // start_time,
+      // end_time,
+      // contact_number,
+    } = req.body;
     const profile_photo = req.files?.profile_photo?.[0]?.path;
 
     console.log("Registration attempt:", { full_name, email, phone, role });
@@ -76,6 +90,30 @@ const registerUser = async (req, res) => {
       );
     }
 
+    // if (role === "SCHOOL") {
+    //   await pool.query(
+    //     `
+    //     INSERT INTO schools(owner_user_id,school_name,service_active)
+    //     VALUES ($1,$2,$3)
+    //   `,
+    //     [userId, school_name, true],
+    //   );
+    //   await pool.query(
+    //     `INSERT INTO school_branches(school_id,branch_name,address,latitude,longitude,start_time,end_time,contact_number)
+    //      VALUES ((SELECT id FROM schools WHERE owner_user_id=$1),$2,$3,$4,$5,$6,$7,$8)`,
+    //     [
+    //       userId,
+    //       branch_name,
+    //       address,
+    //       latitude,
+    //       longitude,
+    //       start_time,
+    //       end_time,
+    //       contact_number,
+    //     ],
+    //   );
+    // }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     await pool.query(
       `
@@ -104,35 +142,43 @@ const loginUser = async (req, res) => {
   const { email, phone, password } = req.body;
 
   try {
+    await pool.query("BEGIN");
     const u = await pool.query(
       `
-    SELECT u.id,u.full_name,u.email,u.phone,u.password,u.is_verified,u.role,da.is_approved
+    SELECT u.id,u.full_name,u.email,u.phone,u.password,u.is_verified,u.role,da.status
     FROM users u LEFT JOIN driver_approvals da ON u.id=da.driver_id WHERE email=$1
   `,
       [email],
     );
 
-    if (!u.rowCount)
+    if (!u.rowCount) {
+      await pool.query("ROLLBACK");
       return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     const user = u.rows[0];
     const driverApproval = await pool.query(
-      "SELECT is_approved FROM driver_approvals WHERE driver_id=$1",
+      "SELECT status FROM driver_approvals WHERE driver_id=$1",
       [user.id],
     );
 
     if (!user.is_verified)
       return res.status(403).json({ message: "Verify OTP first" });
-    if (user.role === "DRIVER" && !driverApproval)
+    if (
+      user.role === "DRIVER" &&
+      driverApproval.rows[0]?.status !== "VERIFIED"
+    ) {
+      await pool.query("ROLLBACK");
       return res.status(403).json({
         message:
           "Police record verification is in progress. Please try again later.",
       });
-
+    }
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok)
+    if (!ok) {
+      await pool.query("ROLLBACK");
       return res.status(400).json({ message: "Email or password incorrect" });
-
+    }
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
@@ -145,10 +191,15 @@ const loginUser = async (req, res) => {
       console.error("Failed to send welcome email:", emailError);
     }
 
+    await pool.query("COMMIT");
+    await pool.query(`UPDATE users SET last_login=NOW() WHERE id=$1`, [
+      user.id,
+    ]);
     return res
       .status(200)
       .json({ message: "Login successful", role: user.role, token });
   } catch (error) {
+    await pool.query("ROLLBACK");
     return res.status(500).json({ error: error.message });
   }
 };
@@ -157,6 +208,7 @@ const verifyOtp = async (req, res) => {
   const { email, phone, otp } = req.body;
 
   try {
+    await pool.query("BEGIN");
     const r = await pool.query(
       `
     SELECT u.id FROM users u
@@ -166,9 +218,10 @@ const verifyOtp = async (req, res) => {
       [email, otp],
     );
 
-    if (!r.rowCount)
+    if (!r.rowCount) {
+      await pool.query("ROLLBACK");
       return res.status(400).json({ message: "Invalid or expired OTP" });
-
+    }
     await pool.query("UPDATE users SET is_verified=true WHERE id=$1", [
       r.rows[0].id,
     ]);
@@ -176,9 +229,10 @@ const verifyOtp = async (req, res) => {
       "UPDATE users_otp SET status='VERIFIED', otp='' WHERE user_id=$1",
       [r.rows[0].id],
     );
-
+    await pool.query("COMMIT");
     return res.status(200).json({ message: "OTP verified" });
   } catch (error) {
+    await pool.query("ROLLBACK");
     return res.status(500).json({ error: error.message });
   }
 };
