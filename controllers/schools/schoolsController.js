@@ -43,8 +43,10 @@ allDrivers = async (req, res) => {
         LEFT JOIN bookings b ON b.van_id = v.id
         LEFT JOIN driver_ratings dr ON dr.driver_id = u.id
         LEFT JOIN complaints c ON c.driver_id = u.id
+        LEFT JOIN school_branches sb ON sb.id = da.branch_id
+        LEFT JOIN schools s ON s.id = sb.school_id
       
-      WHERE u.role='DRIVER' AND u.is_verified = true AND r.school_id = $1 GROUP BY u.id, da.status, r.name, v.number_plate ORDER BY u.created_at DESC`,
+      WHERE u.role='DRIVER' AND u.is_verified = true AND s.id = $1 GROUP BY u.id, da.status, r.name, v.number_plate ORDER BY u.created_at DESC`,
       [req.user.id],
     );
     await pool.query("COMMIT");
@@ -61,12 +63,12 @@ allComplaints = async (req, res) => {
     const r = await pool.query(
       `SELECT c.* ,
          u.full_name AS driver_name,
-         c.full_name,
-         c.grade,
+         child.full_name AS child_name,
+         child.grade,
          p.full_name,
          p.phone
       
-      FROM complaints c LEFT JOIN users u ON u.id = c.driver_id LEFT JOIN users p ON p.id = c.parent_id WHERE c.school_id=$1 ORDER BY c.created_at DESC`,
+      FROM complaints c LEFT JOIN users u ON u.id = c.driver_id LEFT JOIN users p ON p.id = c.parent_id LEFT JOIN children child ON child.parent_id = c.parent_id WHERE c.school_id=$1 ORDER BY c.created_at DESC`,
       [req.user.id],
     );
     await pool.query("COMMIT");
