@@ -11,16 +11,18 @@ getUser = async (req, res) => {
 
 editUserDetails = async (req, res) => {
   try {
+    await pool.query("BEGIN");
     const { full_name, phone, email, password } = req.body;
     const user_id = req.user.id;
-    const profile_photo= req?.files?.profile_photo?.[0]?.path;
+    const profile_photo = req?.files?.profile_photo?.[0]?.path;
 
     const exists = await pool.query("SELECT id FROM users WHERE id=$1", [
       user_id,
     ]);
-    if (!exists.rows.length)
+    if (!exists.rows.length) {
+      await pool.query("ROLLBACK");
       return res.status(404).json({ message: "User not found" });
-
+    }
     let hash = null;
     if (password) {
       hash = await bcrypt.hash(password, 10);
@@ -35,13 +37,15 @@ editUserDetails = async (req, res) => {
           profile_photo = COALESCE($5, profile_photo)
        WHERE id=$6
        RETURNING id, full_name, phone, email, profile_photo`,
-      [full_name, phone, email, hash, profile_photo, user_id]
+      [full_name, phone, email, hash, profile_photo, user_id],
     );
+    await pool.query("COMMIT");
 
     return res
       .status(200)
       .json({ message: "Profile updated", user: result.rows[0] });
   } catch (e) {
+    await pool.query("ROLLBACK");
     return res.status(500).json({ error: e.message });
   }
 };

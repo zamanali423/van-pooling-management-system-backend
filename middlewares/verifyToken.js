@@ -21,7 +21,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     const result = await pool.query(
-      "SELECT id, role, full_name, phone, email, profile_photo, is_verified, created_at FROM users WHERE id=$1 LIMIT 1",
+      "SELECT id, role, full_name, phone, email, profile_photo, last_login, is_active, is_verified, created_at FROM users WHERE id=$1 LIMIT 1",
       [decoded.id]
     );
 
