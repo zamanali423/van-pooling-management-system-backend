@@ -80,16 +80,49 @@ allComplaints = async (req, res) => {
 };
 
 verifyComplaint = async (req, res) => {
-  const { complaint_id } = req.params;
-  const { is_valid } = req.body;
+  const { complaintId } = req.params;
+  const { status } = req.body;
+  console.log(complaintId, status);
   try {
+    if (!complaintId || !status) {
+      return res
+        .status(400)
+        .json({ message: "Complaint id and status required" });
+    }
     await pool.query("BEGIN");
     const r = await pool.query(`UPDATE complaints SET status=$1 WHERE id=$2`, [
-      is_valid ? "RESOLVED" : "IN_PROGRESS",
-      complaint_id,
+      status,
+      complaintId,
     ]);
     await pool.query("COMMIT");
-    res.json({ message: `Complaint ${is_valid ? "resolved" : "in progress"}` });
+    res.json({ message: `Complaint ${status}` });
+  } catch (e) {
+    await pool.query("ROLLBACK");
+    res.status(500).json({ error: e.message });
+  }
+};
+
+viewSpecificDriverComplaints = async (req, res) => {
+  const { driverId } = req.params;
+  try {
+    await pool.query("BEGIN");
+    const r = await pool.query(
+      `SELECT c.* ,
+         u.full_name AS driver_name,
+         child.full_name AS child_name,
+         child.grade,
+         p.full_name,
+         p.phone
+      FROM complaints c
+        LEFT JOIN users u ON u.id = c.driver_id
+        LEFT JOIN users p ON p.id = c.parent_id
+        LEFT JOIN children child ON child.parent_id = c.parent_id
+      WHERE c.driver_id = $1
+      ORDER BY c.created_at DESC`,
+      [driverId],
+    );
+    await pool.query("COMMIT");
+    res.json(r.rows);
   } catch (e) {
     await pool.query("ROLLBACK");
     res.status(500).json({ error: e.message });
@@ -115,7 +148,10 @@ driverMatrics = async (req, res) => {
         LEFT JOIN complaints c ON c.driver_id = u.id
         LEFT JOIN vans v ON v.driver_id = u.id
         LEFT JOIN bookings b ON b.van_id = v.id
-        WHERE da.driver_id = $1 AND u.role='DRIVER' AND u.is_verified = true GROUP BY u.full_name, da.status,
+        LEFT JOIN school_branches sb ON sb.id = da.branch_id
+        LEFT JOIN schools s ON s.id = sb.school_id
+        WHERE s.id = $1 AND u.role='DRIVER' AND u.is_verified = true
+        GROUP BY u.full_name, da.status
       `,
       [req.user.id],
     );
@@ -132,5 +168,6 @@ module.exports = {
   allDrivers,
   allComplaints,
   verifyComplaint,
+  viewSpecificDriverComplaints,
   driverMatrics,
 };

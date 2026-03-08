@@ -6,6 +6,7 @@ const {
   allComplaints,
   verifyComplaint,
   driverMatrics,
+  viewSpecificDriverComplaints,
 } = require("../../controllers/schools/schoolsController");
 const verifyToken = require("../../middlewares/verifyToken");
 
@@ -14,5 +15,6 @@ router.get("/all-drivers", verifyToken, allDrivers);
 router.get("/all-complaints", verifyToken, allComplaints);
 router.put("/verify-complaint/:complaintId", verifyToken, verifyComplaint);
 router.get("/driver-metrics", verifyToken, driverMatrics);
+router.get("/driver-complaints/:driverId", verifyToken, viewSpecificDriverComplaints);
 
 module.exports = router;
