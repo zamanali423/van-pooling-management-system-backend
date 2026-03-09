@@ -9,7 +9,7 @@ getVans = async (req, res) => {
     v.number_plate,
     v.capacity::int,
     v.fare::float,
-    CASE WHEN v.gender_type='GIRLS_ONLY' THEN true ELSE false END AS is_girls_only,
+    v.gender_type,
     v.photo_url,
     v.is_active,
 

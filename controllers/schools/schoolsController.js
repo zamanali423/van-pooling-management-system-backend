@@ -46,7 +46,7 @@ allDrivers = async (req, res) => {
         LEFT JOIN school_branches sb ON sb.id = da.branch_id
         LEFT JOIN schools s ON s.id = sb.school_id
       
-      WHERE u.role='DRIVER' AND u.is_verified = true AND s.id = $1 GROUP BY u.id, da.status, r.name, v.number_plate ORDER BY u.created_at DESC`,
+      WHERE u.role='DRIVER' AND u.is_verified = true AND s.owner_user_id = $1 GROUP BY u.id, da.status, r.name, v.number_plate ORDER BY u.created_at DESC`,
       [req.user.id],
     );
     await pool.query("COMMIT");
@@ -61,14 +61,23 @@ allComplaints = async (req, res) => {
   try {
     await pool.query("BEGIN");
     const r = await pool.query(
-      `SELECT c.* ,
-         u.full_name AS driver_name,
-         child.full_name AS child_name,
-         child.grade,
-         p.full_name,
-         p.phone
-      
-      FROM complaints c LEFT JOIN users u ON u.id = c.driver_id LEFT JOIN users p ON p.id = c.parent_id LEFT JOIN children child ON child.parent_id = c.parent_id WHERE c.school_id=$1 ORDER BY c.created_at DESC`,
+      `SELECT 
+    c.*,
+    u.full_name AS driver_name,
+    child.full_name AS child_name,
+    child.grade,
+    p.full_name AS parent_name,
+    p.phone
+
+FROM complaints c
+LEFT JOIN users u ON u.id = c.driver_id
+LEFT JOIN users p ON p.id = c.parent_id
+LEFT JOIN children child ON child.id = c.child_id
+LEFT JOIN school_branches sb ON sb.id = child.branch_id
+LEFT JOIN schools s ON s.id = sb.school_id
+
+WHERE s.owner_user_id = $1
+ORDER BY c.created_at DESC;`,
       [req.user.id],
     );
     await pool.query("COMMIT");
@@ -116,7 +125,7 @@ viewSpecificDriverComplaints = async (req, res) => {
       FROM complaints c
         LEFT JOIN users u ON u.id = c.driver_id
         LEFT JOIN users p ON p.id = c.parent_id
-        LEFT JOIN children child ON child.parent_id = c.parent_id
+        LEFT JOIN children child ON child.id = c.child_id
       WHERE c.driver_id = $1
       ORDER BY c.created_at DESC`,
       [driverId],
@@ -150,7 +159,7 @@ driverMatrics = async (req, res) => {
         LEFT JOIN bookings b ON b.van_id = v.id
         LEFT JOIN school_branches sb ON sb.id = da.branch_id
         LEFT JOIN schools s ON s.id = sb.school_id
-        WHERE s.id = $1 AND u.role='DRIVER' AND u.is_verified = true
+        WHERE s.owner_user_id = $1 AND u.role='DRIVER' AND u.is_verified = true
         GROUP BY u.full_name, da.status
       `,
       [req.user.id],
