@@ -7,13 +7,13 @@ const createNewRoute = async (req, res) => {
 
     const van = await pool.query(
       "SELECT * FROM vans WHERE id=$1 AND driver_id=$2",
-      [van_id, driverId]
+      [van_id, driverId],
     );
     if (!van.rowCount) return res.status(403).json({ message: "Not your van" });
 
     const r = await pool.query(
       "INSERT INTO routes(van_id,school_id,name) VALUES($1,$2,$3) RETURNING *",
-      [van_id, school_id, name]
+      [van_id, school_id, name],
     );
     res.status(201).json({ route: r.rows[0] });
   } catch (e) {
@@ -74,7 +74,7 @@ getDriverRoutes = async (req, res) => {
 
       WHERE V.driver_id = $1
       `,
-      [req.user.id]
+      [req.user.id],
     );
 
     res.json({ routes: r.rows });
@@ -97,7 +97,7 @@ const updateRouteLocation = async (req, res) => {
        SET latitude = $1, longitude = $2
        WHERE id = $3 AND driver_id = $4
        RETURNING *`,
-      [latitude, longitude, routeId, driverId]
+      [latitude, longitude, routeId, driverId],
     );
 
     if (!result.rowCount)
@@ -118,7 +118,7 @@ const deleteRoute = async (req, res) => {
       `DELETE FROM routes
        WHERE id = $1 AND driver_id = $2
        RETURNING id`,
-      [routeId, driverId]
+      [routeId, driverId],
     );
 
     if (!result.rowCount)
@@ -149,7 +149,7 @@ viewAssignedStudents = async (req, res) => {
     JOIN vans v ON v.id=b.van_id
     WHERE v.driver_id=$1 AND b.status='ACTIVE'
   `,
-      [req.user.id]
+      [req.user.id],
     );
     res.json({ students: q.rows });
   } catch (error) {
@@ -239,7 +239,7 @@ WHERE V.driver_id = $1
   AND B.status = 'ACTIVE';
 
       `,
-      [req.user.id]
+      [req.user.id],
     );
 
     res.json({ students: q.rows });
@@ -312,7 +312,7 @@ const viewStudentDetails = async (req, res) => {
 
       WHERE DU.driver_id = $1 AND C.id = $2
     `,
-      [driverId, childId]
+      [driverId, childId],
     );
 
     if (!result.rowCount)
@@ -351,9 +351,73 @@ GROUP BY date_trunc('month', cp.payment_date)
 ORDER BY month;
 
   `,
-      [req.user.id]
+      [req.user.id],
     );
     res.json({ earnings: q.rows });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
+
+latestEarnings = async (req, res) => {
+  try {
+    const driver_id = req.user.id;
+
+    const earnings = await pool.query(
+      `
+      SELECT 
+        cp.id,
+        cp.amount,
+        cp.payment_date,
+        cp.created_at,
+        b.child_id,
+        v.number_plate
+      FROM cash_payments cp
+      JOIN bookings b ON b.id = cp.booking_id
+      JOIN vans v ON v.id = b.van_id
+      WHERE v.driver_id = $1
+      ORDER BY cp.created_at DESC
+      LIMIT 10
+      `,
+      [driver_id],
+    );
+
+    return res.status(200).json({ earnings: earnings.rows });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
+
+earningPerStudents = async (req, res) => {
+  try {
+    const driver_id = req.user.id;
+
+    const earnings = await pool.query(
+      `
+      SELECT 
+        cp.id,
+        cp.amount,
+        cp.payment_date,
+        cp.created_at,
+        b.child_id,
+        c.full_name AS child_name,
+      FROM cash_payments cp
+      JOIN bookings b ON b.id = cp.booking_id
+      JOIN children c ON c.id = b.child_id
+      JOIN vans v ON v.id = b.van_id
+      WHERE v.driver_id = $1
+      GROUP BY c.full_name
+      ORDER BY cp.created_at DESC
+      LIMIT 10
+      `,
+      [driver_id],
+    );
+
+    return res.status(200).json({ earnings: earnings.rows });
   } catch (error) {
     return res
       .status(500)
@@ -373,7 +437,7 @@ viewPaymentHistory = async (req, res) => {
     WHERE v.driver_id=$1
     ORDER BY cp.payment_date DESC
   `,
-      [req.user.id]
+      [req.user.id],
     );
     res.json({ payments: q.rows });
   } catch (error) {
@@ -395,7 +459,7 @@ const leaveAndAssignNewDriver = async (req, res) => {
       SELECT 1 FROM driver_documents 
       WHERE driver_id=$1 AND is_verified=true
     `,
-      [newDriverId]
+      [newDriverId],
     );
 
     if (!verify.rowCount) throw "New driver not verified";
@@ -407,7 +471,7 @@ const leaveAndAssignNewDriver = async (req, res) => {
       WHERE driver_id=$2 
       RETURNING id
     `,
-      [newDriverId, oldDriverId]
+      [newDriverId, oldDriverId],
     );
 
     if (!vans.rowCount) throw "No vans assigned";
@@ -418,7 +482,7 @@ const leaveAndAssignNewDriver = async (req, res) => {
         INSERT INTO driver_assign(old_driver,new_driver,van_id,reason)
         VALUES($1,$2,$3,$4)
       `,
-        [oldDriverId, newDriverId, v.id, reason]
+        [oldDriverId, newDriverId, v.id, reason],
       );
     }
 
@@ -442,7 +506,7 @@ const restoreDriver = async (req, res) => {
       SELECT * FROM driver_assign 
       WHERE old_driver=$1
     `,
-      [oldDriverId]
+      [oldDriverId],
     );
 
     if (!logs.rowCount) throw "Nothing to restore";
@@ -452,7 +516,7 @@ const restoreDriver = async (req, res) => {
         `
         UPDATE vans SET driver_id=$1 WHERE id=$2
       `,
-        [oldDriverId, row.van_id]
+        [oldDriverId, row.van_id],
       );
     }
 
@@ -475,7 +539,7 @@ getFeedback = async (req, res) => {
     ON CONFLICT (driver_id,child_id,parent_id)
     DO UPDATE SET rating=$4,comments=$5
   `,
-      [parent_id, req.user.id, child_id, rating, comments]
+      [parent_id, req.user.id, child_id, rating, comments],
     );
     res.json({ message: "Rating saved" });
   } catch (error) {
@@ -503,7 +567,7 @@ const getFeedbackHistory = async (req, res) => {
       WHERE r.driver_id = $1
       ORDER BY r.created_at DESC
     `,
-      [driver_id]
+      [driver_id],
     );
 
     return res.status(200).json({ feedbacks: feedbacks.rows });
@@ -523,7 +587,7 @@ doComplaints = async (req, res) => {
     INSERT INTO complaints(parent_id,driver_id,description,status)
     VALUES($1,$2,$3,'OPEN')
   `,
-      [parent_id, req.user.id, description]
+      [parent_id, req.user.id, description],
     );
     res.json({ message: "Complaint filed" });
   } catch (error) {
@@ -544,7 +608,7 @@ getComplaintsHistory = async (req, res) => {
     const driver_id = req.user.id;
     const complaints = await pool.query(
       "SELECT * FROM COMPLAINTS WHERE driver_id=$1 ORDER BY created_at DESC",
-      [driver_id]
+      [driver_id],
     );
     return res.status(200).json({ complaints: complaints.rows });
   } catch (error) {
@@ -560,7 +624,7 @@ delayReports = async (req, res) => {
     const reports = await pool.query(
       `SELECT DR.*,R.name AS route_name FROM DELAY_REPORTS DR JOIN ROUTES R ON R.id=DR.route_id
        WHERE DR.driver_id=$1 ORDER BY DR.reported_at DESC`,
-      [driver_id]
+      [driver_id],
     );
     return res.status(200).json({ reports: reports.rows });
   } catch (error) {
