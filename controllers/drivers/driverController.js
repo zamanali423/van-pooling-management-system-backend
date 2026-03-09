@@ -34,8 +34,8 @@ getDriverRoutes = async (req, res) => {
         JSONB_BUILD_OBJECT(
           'id', S.id,
           'address', S.school_name,
-          'start_time', S.start_time,
-          'end_time', S.end_time
+          'start_time', SB.start_time,
+          'end_time', SB.end_time
         ) AS school,
 
         -- Stops Count
@@ -69,7 +69,8 @@ getDriverRoutes = async (req, res) => {
 
       FROM routes R
       JOIN vans V ON V.id = R.van_id
-      JOIN schools S ON S.id = R.school_id
+      JOIN school_branches SB ON SB.id = R.branch_id
+      JOIN schools S ON S.id = SB.school_id
 
       WHERE V.driver_id = $1
       `,
