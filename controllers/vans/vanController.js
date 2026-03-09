@@ -9,23 +9,31 @@ getVans = async (req, res) => {
     v.number_plate,
     v.capacity::int,
     v.fare::float,
-    v.is_girls_only,
+    CASE WHEN v.gender_type='GIRLS_ONLY' THEN true ELSE false END AS is_girls_only,
     v.photo_url,
     v.is_active,
 
     u.full_name AS driver_name,
     u.profile_photo AS driver_profile_photo,
 
-    COALESCE(AVG(dr.rating), 0)::float AS average_rating,
-    COUNT(DISTINCT dr.id)::int AS total_reviews,
-    (v.capacity-COUNT(DISTINCT b.id))::float AS available_seats
+    (SELECT COALESCE(AVG(dr.rating), 0)::float 
+     FROM driver_ratings dr 
+     WHERE dr.driver_id = v.driver_id) AS average_rating,
+     
+    (SELECT COUNT(DISTINCT dr.id)::int
+     FROM driver_ratings dr
+     WHERE dr.driver_id = v.driver_id) AS total_reviews,
 
-  FROM vans v
-  LEFT JOIN users u ON u.id = v.driver_id
-  LEFT JOIN driver_ratings dr ON dr.driver_id = v.driver_id
-  LEFT JOIN bookings b ON b.van_id = v.id
-  WHERE v.is_active = true
-  GROUP BY v.id, u.full_name, u.profile_photo
+    (SELECT (v.capacity-COUNT(DISTINCT b.id))::float FROM bookings b WHERE b.van_id = v.id AND b.status = 'ACTIVE') AS available_seats
+
+    FROM vans v
+    INNER JOIN users u ON u.id = v.driver_id
+    INNER JOIN driver_approvals da ON da.driver_id = v.driver_id
+    INNER JOIN children c ON c.branch_id = da.branch_id
+    INNER JOIN school_branches sb ON sb.id = da.branch_id
+    INNER JOIN schools s ON s.id = sb.school_id
+    WHERE v.is_active = true AND da.status = 'APPROVED' AND da.approved_at IS NOT NULL 
+    GROUP BY v.id, u.full_name, u.profile_photo;
     `);
 
     res.json({ vans: vans.rows });
@@ -46,7 +54,7 @@ bookVan = async (req, res) => {
 
     const vanRes = await pool.query(
       "SELECT * FROM vans WHERE id=$1 AND is_active=true",
-      [vanId]
+      [vanId],
     );
     if (!vanRes.rows.length) throw "Van not found or inactive";
     const van = vanRes.rows[0];
@@ -58,7 +66,7 @@ bookVan = async (req, res) => {
     for (let id of childId) {
       const childRes = await pool.query(
         "SELECT * FROM children WHERE id=$1 AND parent_id=$2",
-        [id, parentId]
+        [id, parentId],
       );
       if (!childRes.rows.length) throw `Child with ID ${id} not found`;
 
@@ -69,20 +77,20 @@ bookVan = async (req, res) => {
 
       const usedRes = await pool.query(
         "SELECT COUNT(*) FROM bookings WHERE van_id=$1 AND status='ACTIVE'",
-        [vanId]
+        [vanId],
       );
       if (parseInt(usedRes.rows[0].count) >= van.capacity) throw "Van is full";
 
       const existsRes = await pool.query(
         "SELECT 1 FROM bookings WHERE child_id=$1 AND status='ACTIVE'",
-        [id]
+        [id],
       );
       if (existsRes.rows.length)
         throw `Child ${child.full_name} already has an active booking`;
 
       const bookingRes = await pool.query(
         "INSERT INTO bookings (child_id, van_id, status) VALUES ($1,$2,'ACTIVE') RETURNING *",
-        [id, vanId]
+        [id, vanId],
       );
 
       const dueDate = new Date();
@@ -90,7 +98,7 @@ bookVan = async (req, res) => {
 
       await pool.query(
         "INSERT INTO cash_payments (booking_id, parent_id, amount, due_date) VALUES ($1,$2,$3,$4)",
-        [bookingRes.rows[0].id, parentId, van.fare, dueDate]
+        [bookingRes.rows[0].id, parentId, van.fare, dueDate],
       );
 
       bookings.push(bookingRes.rows[0]);
@@ -118,7 +126,7 @@ getVanDetails = async (req, res) => {
     LEFT JOIN users u ON u.id=v.driver_id
     WHERE v.id=$1
   `,
-    [vanId]
+    [vanId],
   );
 
   if (!van.rows.length)
@@ -139,7 +147,7 @@ addVansByDriver = async (req, res) => {
   const van = await pool.query(
     `INSERT INTO vans (driver_id, number_plate, capacity, fare, is_girls_only, photo_url)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [driverId, number_plate, capacity, fare, is_girls_only, photo_url]
+    [driverId, number_plate, capacity, fare, is_girls_only, photo_url],
   );
 
   res.status(201).json({ van: van.rows[0] });
@@ -151,7 +159,7 @@ updateVanStatus = async (req, res) => {
 
   const v = await pool.query(
     "UPDATE vans SET is_active=$1 WHERE id=$2 RETURNING *",
-    [is_active, vanId]
+    [is_active, vanId],
   );
   if (!v.rows.length) return res.status(404).json({ message: "Van not found" });
   res.json({ message: "Status updated", van: v.rows[0] });

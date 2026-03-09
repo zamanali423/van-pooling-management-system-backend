@@ -24,8 +24,10 @@ const childValidation = z.object({
     .or(z.literal("")),
 
   school_id: z.coerce.number().min(1),
-  
-  requires_girls_only: z.boolean().optional().or(z.literal("true")).or(z.literal("false")).or(z.literal(true)).or(z.literal(false)),
+  branch_id: z.coerce.number().min(1),
+  pickup_address: z.string().min(5).trim(),
+
+  // requires_girls_only: z.boolean().optional().or(z.literal("true")).or(z.literal("false")).or(z.literal(true)).or(z.literal(false)),
 });
 
 const childUpdate = z.object({
@@ -52,9 +54,11 @@ const childUpdate = z.object({
     .optional()
     .or(z.literal("")),
 
-  school_id: z.coerce.number().min(1).optional(),
-  
-  requires_girls_only: z.boolean().optional().or(z.literal("true")).or(z.literal("false")).or(z.literal(true)).or(z.literal(false)).optional(),
+  // school_id: z.coerce.number().min(1).optional(),
+  branch_id: z.coerce.number().min(1).optional(),
+  pickup_address: z.string().min(5).trim().optional(),
+
+  // requires_girls_only: z.boolean().optional().or(z.literal("true")).or(z.literal("false")).or(z.literal(true)).or(z.literal(false)).optional(),
 });
 
 module.exports = {

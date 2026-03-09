@@ -50,7 +50,7 @@ router.put(
   "/children/:childId",
   verifyToken,
   upload.fields([{ name: "child_pic", maxCount: 1 }]),
-  validateRequest(childUpdate),
+  // validateRequest(childUpdate),
   updateChild
 );
 router.delete("/children/:childId", verifyToken, deleteChild);

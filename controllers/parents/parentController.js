@@ -3,6 +3,7 @@ const { pool } = require("../../utils/dbConnection");
 addChildren = async (req, res) => {
   try {
     const {
+      branch_id,
       school_id,
       full_name,
       date_of_birth,
@@ -11,8 +12,11 @@ addChildren = async (req, res) => {
       emergency_contact,
       disease,
       requires_girls_only,
+      pickup_address,
     } = req.body;
     const parent_id = req.user.id;
+
+    console.log({ branch_id, school_id,parent_id, full_name, date_of_birth, gender, grade, emergency_contact, disease, requires_girls_only, pickup_address });
 
     const parent = await pool.query(
       "SELECT id FROM users WHERE id=$1 AND role='PARENT'",
@@ -34,12 +38,12 @@ addChildren = async (req, res) => {
       requires_girls_only === "true" || requires_girls_only === true;
 
     const child = await pool.query(
-      `INSERT INTO children (parent_id, school_id, full_name, date_of_birth, gender, grade, emergency_contact, disease,
-      requires_girls_only, child_pic)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      `INSERT INTO children (parent_id, branch_id, full_name, date_of_birth, gender, grade, emergency_contact, disease,
+      requires_girls_only, child_pic, pickup_address)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
       [
         parent_id,
-        school_id,
+        branch_id,
         full_name,
         date_of_birth,
         gender.toUpperCase(),
@@ -48,6 +52,7 @@ addChildren = async (req, res) => {
         disease,
         requiresGirlsOnly,
         child_pic,
+        pickup_address,
       ]
     );
 
@@ -63,11 +68,12 @@ getChildren = async (req, res) => {
       `
       SELECT 
         c.*,
-        s.address AS school_name,
+        s.school_name AS school_name,
         u.full_name AS guardian,
         v.number_plate
       FROM children c
-      JOIN schools s ON c.school_id = s.id
+      JOIN school_branches sb ON sb.id = c.branch_id
+      JOIN schools s ON s.id=sb.school_id
       JOIN users u ON u.id = c.parent_id
       LEFT JOIN bookings b ON b.child_id = c.id
       LEFT JOIN vans v ON v.id = b.van_id
@@ -94,6 +100,7 @@ getChildDetails = async (req, res) => {
 updateChild = async (req, res) => {
   try {
     const {
+      branch_id,
       school_id,
       full_name,
       date_of_birth,
@@ -102,15 +109,18 @@ updateChild = async (req, res) => {
       emergency_contact,
       disease,
       requires_girls_only,
+      pickup_address
     } = req.body;
+
+     console.log({ branch_id, school_id, full_name, date_of_birth, gender, grade, emergency_contact, disease, requires_girls_only, pickup_address });
 
     const updates = [];
     const values = [];
     let index = 1;
 
-    if (school_id !== undefined) {
-      updates.push(`school_id=$${index}`);
-      values.push(school_id);
+    if (branch_id !== undefined) {
+      updates.push(`branch_id=$${index}`);
+      values.push(branch_id);
       index++;
     }
 
@@ -160,6 +170,12 @@ updateChild = async (req, res) => {
     if (req.files?.child_pic?.[0]?.path) {
       updates.push(`child_pic=$${index}`);
       values.push(req.files.child_pic[0].path);
+      index++;
+    }
+
+    if (pickup_address !== undefined) {
+      updates.push(`pickup_address=$${index}`);
+      values.push(pickup_address);
       index++;
     }
 
