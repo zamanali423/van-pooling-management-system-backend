@@ -33,7 +33,7 @@ getDriverRoutes = async (req, res) => {
         -- School Info
         JSONB_BUILD_OBJECT(
           'id', S.id,
-          'address', S.address,
+          'address', S.school_name,
           'start_time', S.start_time,
           'end_time', S.end_time
         ) AS school,
@@ -138,7 +138,7 @@ viewAssignedStudents = async (req, res) => {
       u.full_name AS parent_name,
       b.id AS booking_id,
       s.id AS school_id,
-      s.address AS school_address,
+      s.school_name AS school_address,
       s.start_time - INTERVAL '40 minutes' AS pickup_time,
       s.end_time AS drop_off_time
     FROM bookings b
@@ -168,9 +168,9 @@ allStudents = async (req, res) => {
 
     JSONB_BUILD_OBJECT(
         'id', S.id,
-        'address', S.address,
-        'pickup_time', S.start_time - INTERVAL '30 minutes',
-        'drop_off_time', S.end_time
+        'address', S.school_name,
+        'pickup_time', SB.start_time - INTERVAL '30 minutes',
+        'drop_off_time', SB.end_time
     ) AS school_info,
 
     JSONB_BUILD_OBJECT(
@@ -213,7 +213,8 @@ JOIN vans V ON V.id = B.van_id
 JOIN users DU ON DU.id = V.driver_id
 JOIN users PU ON PU.id = C.parent_id
 JOIN routes R ON R.van_id = V.id
-JOIN schools S ON S.id = R.school_id
+JOIN school_branches SB ON SB.id = C.branch_id
+JOIN schools S ON S.id = SB.school_id
 
 -- Attendance subquery per child
 LEFT JOIN LATERAL (
@@ -263,9 +264,9 @@ const viewStudentDetails = async (req, res) => {
         -- School Info
         JSONB_BUILD_OBJECT(
           'id', S.id,
-          'address', S.address,
-          'pickup_time', S.start_time - INTERVAL '30 minutes',
-          'drop_off_time', S.end_time
+          'address', S.school_name,
+          'pickup_time', SB.start_time - INTERVAL '30 minutes',
+          'drop_off_time', SB.end_time
         ) AS school_info,
 
         -- Route Info
@@ -305,7 +306,8 @@ const viewStudentDetails = async (req, res) => {
       JOIN users DU ON DU.id = V.driver_id
       JOIN users PU ON PU.id = C.parent_id
       JOIN routes R ON R.van_id = V.id
-      JOIN schools S ON S.id = R.school_id
+      JOIN school_branches SB ON SB.id = C.branch_id
+      JOIN schools S ON S.id = SB.school_id
 
       WHERE DU.driver_id = $1 AND C.id = $2
     `,
