@@ -17,6 +17,8 @@ const {
   getComplaintsHistory,
   allStudents,
   delayReports,
+  latestEarnings,
+  earningPerStudents,
 } = require("../../controllers/drivers/driverController");
 const { validateRequest } = require("../../middlewares/errorsHandling");
 const {
@@ -33,14 +35,14 @@ router.post(
   "/create-new-route",
   verifyToken,
   validateRequest(createNewRouteValidation),
-  createNewRoute
+  createNewRoute,
 );
 router.get("/driver-routes", verifyToken, getDriverRoutes);
 router.put(
   "/update-route-location/:routeId",
   verifyToken,
   validateRequest(updateRouteValidation),
-  updateRouteLocation
+  updateRouteLocation,
 );
 router.delete("/delete-route/:routeId", verifyToken, deleteRoute);
 router.get("/assigned-students/:routeId", verifyToken, viewAssignedStudents);
@@ -50,7 +52,7 @@ router.get("/payment-history", verifyToken, viewPaymentHistory);
 router.put(
   "/leave-and-assign-new-driver",
   verifyToken,
-  leaveAndAssignNewDriver
+  leaveAndAssignNewDriver,
 );
 router.put("/restore-driver", verifyToken, restoreDriver);
 router.post("/feedback", verifyToken, getFeedback);
@@ -60,5 +62,7 @@ router.get("/complaints-history", verifyToken, getComplaintsHistory);
 router.post("/add-vans", verifyToken, addVansByDriver);
 router.get("/all-students", verifyToken, allStudents);
 router.get("/delay-reports", verifyToken, delayReports);
+router.get("/latest-earnings", verifyToken, latestEarnings);
+router.get("/earning-per-students", verifyToken, earningPerStudents);
 
 module.exports = router;

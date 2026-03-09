@@ -361,37 +361,6 @@ ORDER BY month;
   }
 };
 
-latestEarnings = async (req, res) => {
-  try {
-    const driver_id = req.user.id;
-
-    const earnings = await pool.query(
-      `
-      SELECT 
-        cp.id,
-        cp.amount,
-        cp.payment_date,
-        cp.created_at,
-        b.child_id,
-        v.number_plate
-      FROM cash_payments cp
-      JOIN bookings b ON b.id = cp.booking_id
-      JOIN vans v ON v.id = b.van_id
-      WHERE v.driver_id = $1
-      ORDER BY cp.created_at DESC
-      LIMIT 10
-      `,
-      [driver_id],
-    );
-
-    return res.status(200).json({ earnings: earnings.rows });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Server Error", error: error.message });
-  }
-};
-
 earningPerStudents = async (req, res) => {
   try {
     const driver_id = req.user.id;
@@ -403,21 +372,21 @@ earningPerStudents = async (req, res) => {
         cp.amount,
         cp.payment_date,
         cp.created_at,
-        b.child_id,
         c.full_name AS child_name,
+        cp.payment_status AS status
       FROM cash_payments cp
       JOIN bookings b ON b.id = cp.booking_id
       JOIN children c ON c.id = b.child_id
       JOIN vans v ON v.id = b.van_id
       WHERE v.driver_id = $1
-      GROUP BY c.full_name
+      GROUP BY c.full_name, cp.id, cp.amount, cp.payment_date, cp.created_at
       ORDER BY cp.created_at DESC
       LIMIT 10
       `,
       [driver_id],
     );
 
-    return res.status(200).json({ earnings: earnings.rows });
+    return res.status(200).json(earnings.rows);
   } catch (error) {
     return res
       .status(500)
@@ -642,6 +611,8 @@ module.exports = {
   viewAssignedStudents,
   viewStudentDetails,
   getEarningByYear,
+  earningPerStudents,
+  latestEarnings,
   viewPaymentHistory,
   leaveAndAssignNewDriver,
   restoreDriver,
