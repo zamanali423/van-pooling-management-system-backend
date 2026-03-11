@@ -612,7 +612,6 @@ module.exports = {
   viewStudentDetails,
   getEarningByYear,
   earningPerStudents,
-  latestEarnings,
   viewPaymentHistory,
   leaveAndAssignNewDriver,
   restoreDriver,
