@@ -28,11 +28,13 @@ addChildren = async (req, res) => {
       disease,
       requires_girls_only,
       pickup_address,
+      latitude,
+      longitude,
     });
 
     const parent = await pool.query(
       "SELECT id FROM users WHERE id=$1 AND role='PARENT'",
-      [parent_id],
+      [parent_id]
     );
 
     if (!parent.rows.length)
@@ -40,7 +42,7 @@ addChildren = async (req, res) => {
 
     const school = await pool.query(
       "SELECT id FROM schools WHERE id=$1 AND is_active=true AND service_active=true",
-      [school_id],
+      [school_id]
     );
     if (!school.rows.length)
       return res.status(400).json({ message: "School service inactive" });
@@ -51,8 +53,8 @@ addChildren = async (req, res) => {
 
     const child = await pool.query(
       `INSERT INTO children (parent_id, branch_id, full_name, date_of_birth, gender, grade, emergency_contact, disease,
-      requires_girls_only, child_pic, pickup_address)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      requires_girls_only, child_pic, pickup_address,latitude,longitude)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [
         parent_id,
         branch_id,
@@ -65,7 +67,9 @@ addChildren = async (req, res) => {
         requiresGirlsOnly,
         child_pic,
         pickup_address,
-      ],
+        latitude,
+        longitude,
+      ]
     );
 
     res.status(201).json({ message: "Child added", childId: child.rows[0].id });
@@ -91,7 +95,7 @@ getChildren = async (req, res) => {
       LEFT JOIN vans v ON v.id = b.van_id
       WHERE c.parent_id = $1
       `,
-      [req.user.id],
+      [req.user.id]
     );
 
     res.json(children.rows);
@@ -103,7 +107,7 @@ getChildren = async (req, res) => {
 getChildDetails = async (req, res) => {
   const child = await pool.query(
     "SELECT * FROM children WHERE id=$1 AND parent_id=$2",
-    [req.params.childId, req.user.id],
+    [req.params.childId, req.user.id]
   );
   if (!child.rows.length) return res.status(404).json({ message: "Not found" });
   res.json(child.rows[0]);
@@ -122,6 +126,8 @@ updateChild = async (req, res) => {
       disease,
       requires_girls_only,
       pickup_address,
+      latitude,
+      longitude,
     } = req.body;
 
     console.log({
@@ -135,6 +141,8 @@ updateChild = async (req, res) => {
       disease,
       requires_girls_only,
       pickup_address,
+      latitude,
+      longitude,
     });
 
     const updates = [];
@@ -202,6 +210,16 @@ updateChild = async (req, res) => {
       values.push(pickup_address);
       index++;
     }
+    if (latitude !== undefined) {
+      updates.push(`latitude=$${index}`);
+      values.push(latitude);
+      index++;
+    }
+    if (longitude !== undefined) {
+      updates.push(`longitude=$${index}`);
+      values.push(longitude);
+      index++;
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ message: "No fields to update" });
@@ -229,7 +247,7 @@ updateChild = async (req, res) => {
 deleteChild = async (req, res) => {
   const del = await pool.query(
     "DELETE FROM children WHERE id=$1 AND parent_id=$2 RETURNING id",
-    [req.params.childId, req.user.id],
+    [req.params.childId, req.user.id]
   );
   if (!del.rows.length) return res.status(404).json({ message: "Not found" });
   res.json({ message: "Deleted" });
@@ -240,7 +258,7 @@ getFeedback = async (req, res) => {
 
   const exists = await pool.query(
     "SELECT id FROM users WHERE id=$1 AND role='DRIVER'",
-    [driver_id],
+    [driver_id]
   );
   if (!exists.rows.length)
     return res.status(404).json({ message: "Driver not found" });
@@ -248,7 +266,7 @@ getFeedback = async (req, res) => {
   const fb = await pool.query(
     `INSERT INTO driver_ratings (driver_id,parent_id,child_id,rating,comments)
      VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [driver_id, req.user.id, child_id, rating, comments],
+    [driver_id, req.user.id, child_id, rating, comments]
   );
 
   res.status(201).json({ message: "Rating submitted", rating: fb.rows[0] });
@@ -261,7 +279,7 @@ getFeedbackHistory = async (req, res) => {
      JOIN users d ON d.id=r.driver_id
      WHERE r.parent_id=$1
      ORDER BY r.created_at DESC`,
-    [req.user.id],
+    [req.user.id]
   );
   res.json(data.rows);
 };
@@ -272,7 +290,7 @@ doComplaints = async (req, res) => {
   const comp = await pool.query(
     `INSERT INTO complaints (parent_id,driver_id,school_id,description)
      VALUES ($1,$2,$3,$4) RETURNING *`,
-    [req.user.id, driver_id, school_id, description],
+    [req.user.id, driver_id, school_id, description]
   );
 
   res.status(201).json({ message: "Complaint filed", complaint: comp.rows[0] });
@@ -281,7 +299,7 @@ doComplaints = async (req, res) => {
 getComplaintsHistory = async (req, res) => {
   const rows = await pool.query(
     "SELECT * FROM complaints WHERE parent_id=$1 ORDER BY created_at DESC",
-    [req.user.id],
+    [req.user.id]
   );
   res.json(rows.rows);
 };

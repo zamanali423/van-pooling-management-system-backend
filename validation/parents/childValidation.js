@@ -26,6 +26,8 @@ const childValidation = z.object({
   school_id: z.coerce.number().min(1),
   branch_id: z.coerce.number().min(1),
   pickup_address: z.string().min(5).trim(),
+  latitude: z.string().trim().optional(),
+  longitude: z.string().trim().optional(),
 
   // requires_girls_only: z.boolean().optional().or(z.literal("true")).or(z.literal("false")).or(z.literal(true)).or(z.literal(false)),
 });

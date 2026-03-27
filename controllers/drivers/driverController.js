@@ -1,22 +1,175 @@
+const { default: axios } = require("axios");
 const { pool } = require("../../utils/dbConnection");
+
+const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000;
+  const toRad = (val) => (val * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+};
+
+// Nearest Neighbor Algorithm
+const optimizeStops = (stops) => {
+  if (stops.length === 0) return [];
+
+  const visited = new Set();
+  const ordered = [];
+
+  // start from first stop (or school)
+  let current = stops[0];
+  ordered.push(current);
+  visited.add(current.id);
+
+  while (ordered.length < stops.length) {
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const stop of stops) {
+      if (visited.has(stop.id)) continue;
+
+      const dist = getDistanceInMeters(
+        current.lat,
+        current.lng,
+        stop.lat,
+        stop.lng,
+      );
+
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = stop;
+      }
+    }
+
+    ordered.push(nearest);
+    visited.add(nearest.id);
+    current = nearest;
+  }
+
+  return ordered;
+};
+
+const routeDetail = async (req, res) => {
+  try {
+    console.log(req.user);
+    console.log("76767")
+    const r = await pool.query(
+      `
+      SELECT 
+    JSONB_AGG(
+      JSONB_BUILD_OBJECT(
+        'id', v.id,
+        'number_plate', v.number_plate
+      )
+    ) AS vans,
+    JSONB_AGG(
+      JSONB_BUILD_OBJECT(
+        'child_id', c.id,
+        'name', c.full_name,
+        'address', c.pickup_address,
+        'lat', c.latitude,
+        'lng', c.longitude
+      )
+    ) AS children
+FROM vans v
+JOIN bookings b ON b.van_id = v.id
+JOIN children c ON c.id = b.child_id
+WHERE v.driver_id = $1
+  AND b.status = 'COMPLETED'
+GROUP BY v.id, v.number_plate; 
+      `,
+      [req.user.id],
+    );
+
+    res.json({ route: r.rows });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
 
 const createNewRoute = async (req, res) => {
   try {
     const driverId = req.user.id;
-    const { van_id, school_id, name } = req.body;
+    const { van_id, stops, pickup_address } = req.body;
+    // stops = [{ address, lat, lng }]
 
+    await pool.query("BEGIN");
+
+    // 1. Validate van
     const van = await pool.query(
       "SELECT * FROM vans WHERE id=$1 AND driver_id=$2",
       [van_id, driverId],
     );
-    if (!van.rowCount) return res.status(403).json({ message: "Not your van" });
+    if (!van.rowCount) {
+      await pool.query("ROLLBACK");
+      return res.status(403).json({ message: "Not your van" });
+    }
 
-    const r = await pool.query(
-      "INSERT INTO routes(van_id,school_id,name) VALUES($1,$2,$3) RETURNING *",
-      [van_id, school_id, name],
+    // 2. Get school
+    const getSchool = await pool.query(
+      "SELECT branch_id FROM driver_approvals WHERE driver_id=$1",
+      [driverId],
     );
-    res.status(201).json({ route: r.rows[0] });
+    if (!getSchool.rowCount) {
+      await pool.query("ROLLBACK");
+      return res.status(403).json({ message: "Not your school" });
+    }
+
+    const school_id = getSchool.rows[0].branch_id;
+
+    // 3. Create route
+    const newRoute = await pool.query(
+      "INSERT INTO routes(van_id,name,branch_id) VALUES($1,$2,$3) RETURNING id",
+      [van_id, pickup_address, school_id],
+    );
+
+    const routeId = newRoute.rows[0].id;
+
+    // 4. Insert stops (no sequence yet)
+    const insertedStops = [];
+
+    for (const stop of stops) {
+      const s = await pool.query(
+        `INSERT INTO route_stops(route_id, latitude, longitude)
+         VALUES($1,$2,$3)
+         RETURNING id, latitude, longitude`,
+        [routeId, stop.lat, stop.lng],
+      );
+
+      insertedStops.push({
+        id: s.rows[0].id,
+        lat: s.rows[0].latitude,
+        lng: s.rows[0].longitude,
+      });
+    }
+
+    // 5. Optimize stops (nearest neighbor)
+    const orderedStops = optimizeStops(insertedStops);
+
+    // 6. Update sequence
+    for (let i = 0; i < orderedStops.length; i++) {
+      await pool.query("UPDATE route_stops SET sequence_no=$1 WHERE id=$2", [
+        i + 1,
+        orderedStops[i].id,
+      ]);
+    }
+
+    await pool.query("COMMIT");
+
+    res.status(201).json({ routeId });
   } catch (e) {
+    await pool.query("ROLLBACK");
     res.status(500).json({ error: e.message });
   }
 };
@@ -604,6 +757,7 @@ delayReports = async (req, res) => {
 };
 
 module.exports = {
+  routeDetail,
   createNewRoute,
   getDriverRoutes,
   updateRouteLocation,
