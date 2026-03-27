@@ -69,3 +69,4 @@ docker-compose.override.yml
 # git rm --cached .env
 # git commit -m "remove env"
 # git push
+*.pbf
