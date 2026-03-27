@@ -26,7 +26,7 @@ getPaymentHistory = async (req, res) => {
       GROUP BY cp.id, b.id, v.id, u.id
       ORDER BY cp.payment_date DESC
     `,
-      [parent_id]
+      [parent_id],
     );
 
     res.status(200).json({ payments: payments.rows });
@@ -51,7 +51,7 @@ payNow = async (req, res) => {
       `
       SELECT * FROM cash_payments WHERE booking_id = $1 AND parent_id = $2 AND payment_status = 'PENDING'
     `,
-      [booking_id, parent_id]
+      [booking_id, parent_id],
     );
 
     if (!isBooking.rows.length) {
@@ -64,7 +64,14 @@ payNow = async (req, res) => {
       UPDATE cash_payments
       SET proof_photo = $1, payment_status = 'PAID', payment_date = NOW() WHERE booking_id = $2
     `,
-      [proof_photo, booking_id]
+      [proof_photo, booking_id],
+    );
+    await pool.query(
+      `
+      UPDATE bookings
+      SET status = 'COMPLETED' WHERE id = $1
+    `,
+      [booking_id],
     );
 
     await pool.query("COMMIT");

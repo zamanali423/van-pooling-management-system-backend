@@ -20,6 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # tileserver:
+  #   image: maptiler/tileserver-gl
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./tiles:/data
+  # osrm:
+  #   image: osrm/osrm-backend
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./osrm-data:/data
+  #   command: >
+  #     osrm-routed --algorithm mld /data/map.osrm    
   backend:
     build:
       context: .

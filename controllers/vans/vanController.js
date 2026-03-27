@@ -24,7 +24,7 @@ getVans = async (req, res) => {
      FROM driver_ratings dr
      WHERE dr.driver_id = v.driver_id) AS total_reviews,
 
-    (SELECT (v.capacity-COUNT(DISTINCT b.id))::float FROM bookings b WHERE b.van_id = v.id AND b.status = 'ACTIVE') AS available_seats
+    (SELECT (v.capacity-COUNT(DISTINCT b.id))::float FROM bookings b WHERE b.van_id = v.id AND b.status = 'COMPLETED') AS available_seats
 
     FROM vans v
     INNER JOIN users u ON u.id = v.driver_id
@@ -76,13 +76,13 @@ bookVan = async (req, res) => {
         throw `Child ${child.full_name} cannot be booked on a girls-only van`;
 
       const usedRes = await pool.query(
-        "SELECT COUNT(*) FROM bookings WHERE van_id=$1 AND status='ACTIVE'",
+        "SELECT COUNT(*) FROM bookings WHERE van_id=$1 AND status='COMPLETED'",
         [vanId],
       );
       if (parseInt(usedRes.rows[0].count) >= van.capacity) throw "Van is full";
 
       const existsRes = await pool.query(
-        "SELECT 1 FROM bookings WHERE child_id=$1 AND status='ACTIVE'",
+        "SELECT 1 FROM bookings WHERE child_id=$1 AND status='ACTIVE' OR status='COMPLETED'",
         [id],
       );
       if (existsRes.rows.length)
@@ -121,7 +121,7 @@ getVanDetails = async (req, res) => {
     SELECT 
       v.*,
       u.full_name AS driver_name,
-      (SELECT COUNT(*) FROM bookings WHERE van_id=v.id AND status='ACTIVE') AS booked_seats
+      (SELECT COUNT(*) FROM bookings WHERE van_id=v.id AND status='COMPLETED') AS booked_seats
     FROM vans v
     LEFT JOIN users u ON u.id=v.driver_id
     WHERE v.id=$1

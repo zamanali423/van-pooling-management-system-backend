@@ -113,6 +113,7 @@ const registerUser = async (req, res) => {
       `,
         [userId, branch_id],
       );
+
     }
 
     // if (role === "SCHOOL") {

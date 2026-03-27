@@ -7,9 +7,14 @@ const body_parser = require("body-parser");
 const helmet = require("helmet");
 const path = require("path");
 const { authLimiter, apiLimiter } = require("./middlewares/rateLimiter");
+const http = require("http");
+const { Server } = require("socket.io");
+const shareDriverLocation = require("./sockets/shareDriverLocation");
 
 const app = express();
 const port = process.env.PORT || 7860;
+
+const server = http.createServer(app);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -18,7 +23,7 @@ app.use(body_parser.urlencoded({ extended: true }));
 app.use(
   helmet({
     contentSecurityPolicy: false,
-  })
+  }),
 );
 
 const allowedOrigins = [
@@ -33,7 +38,7 @@ app.use(
     origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
-  })
+  }),
 );
 
 app.use("/uploads", (req, res, next) => {
@@ -59,12 +64,9 @@ app.use(
       }
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     },
-  })
+  }),
 );
-app.use(
-  "/uploads",
-  express.static(path.resolve("uploads"))
-);
+app.use("/uploads", express.static(path.resolve("uploads")));
 
 console.log("Serving uploads from:", path.join(__dirname, "uploads"));
 
@@ -89,6 +91,15 @@ app.get("/", (req, res) => {
   res.send("Welcome to the FYP Backend API");
 });
 
+//socket
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+
+shareDriverLocation(io);
+
 //middlewares for error handling
 app.use(require("./middlewares/errorsHandling").routeNotFoundMiddleware);
 app.use(require("./middlewares/errorsHandling").errorMiddleware);
@@ -97,7 +108,7 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    app.listen(port, () => {
+    server.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
     // if(!process.env.VERCEL){

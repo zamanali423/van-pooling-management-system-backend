@@ -50,7 +50,7 @@ getDriverRoutes = async (req, res) => {
           SELECT COUNT(*) 
           FROM bookings B
           WHERE B.van_id = R.van_id
-          AND B.status = 'ACTIVE'
+          AND B.status = 'COMPLETED'
         ) AS total_students,
 
         -- Ordered Stops
@@ -147,7 +147,7 @@ viewAssignedStudents = async (req, res) => {
     JOIN schools s ON s.id=c.school_id
     JOIN users u ON u.id=c.parent_id
     JOIN vans v ON v.id=b.van_id
-    WHERE v.driver_id=$1 AND b.status='ACTIVE'
+    WHERE v.driver_id=$1 AND b.status='COMPLETED'
   `,
       [req.user.id],
     );
@@ -236,7 +236,7 @@ LEFT JOIN LATERAL (
 ) aw ON TRUE
 
 WHERE V.driver_id = $1
-  AND B.status = 'ACTIVE';
+  AND B.status = 'COMPLETED';
 
       `,
       [req.user.id],
@@ -336,7 +336,7 @@ getEarningByYear = async (req, res) => {
     COUNT(DISTINCT r.id) AS route_count,
 
     COUNT(DISTINCT b.child_id) AS child_count,
-    (SELECT COUNT(DISTINCT b.child_id) FROM bookings b WHERE b.status = 'ACTIVE') AS active_child_count
+    (SELECT COUNT(DISTINCT b.child_id) FROM bookings b WHERE b.status = 'COMPLETED') AS active_child_count
 
 FROM cash_payments cp
 JOIN bookings b ON b.id = cp.booking_id

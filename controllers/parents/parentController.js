@@ -16,19 +16,31 @@ addChildren = async (req, res) => {
     } = req.body;
     const parent_id = req.user.id;
 
-    console.log({ branch_id, school_id,parent_id, full_name, date_of_birth, gender, grade, emergency_contact, disease, requires_girls_only, pickup_address });
+    console.log({
+      branch_id,
+      school_id,
+      parent_id,
+      full_name,
+      date_of_birth,
+      gender,
+      grade,
+      emergency_contact,
+      disease,
+      requires_girls_only,
+      pickup_address,
+    });
 
     const parent = await pool.query(
       "SELECT id FROM users WHERE id=$1 AND role='PARENT'",
-      [parent_id]
+      [parent_id],
     );
-    
+
     if (!parent.rows.length)
       return res.status(403).json({ message: "Parent not found" });
 
     const school = await pool.query(
       "SELECT id FROM schools WHERE id=$1 AND is_active=true AND service_active=true",
-      [school_id]
+      [school_id],
     );
     if (!school.rows.length)
       return res.status(400).json({ message: "School service inactive" });
@@ -53,7 +65,7 @@ addChildren = async (req, res) => {
         requiresGirlsOnly,
         child_pic,
         pickup_address,
-      ]
+      ],
     );
 
     res.status(201).json({ message: "Child added", childId: child.rows[0].id });
@@ -79,7 +91,7 @@ getChildren = async (req, res) => {
       LEFT JOIN vans v ON v.id = b.van_id
       WHERE c.parent_id = $1
       `,
-      [req.user.id]
+      [req.user.id],
     );
 
     res.json(children.rows);
@@ -91,7 +103,7 @@ getChildren = async (req, res) => {
 getChildDetails = async (req, res) => {
   const child = await pool.query(
     "SELECT * FROM children WHERE id=$1 AND parent_id=$2",
-    [req.params.childId, req.user.id]
+    [req.params.childId, req.user.id],
   );
   if (!child.rows.length) return res.status(404).json({ message: "Not found" });
   res.json(child.rows[0]);
@@ -109,10 +121,21 @@ updateChild = async (req, res) => {
       emergency_contact,
       disease,
       requires_girls_only,
-      pickup_address
+      pickup_address,
     } = req.body;
 
-     console.log({ branch_id, school_id, full_name, date_of_birth, gender, grade, emergency_contact, disease, requires_girls_only, pickup_address });
+    console.log({
+      branch_id,
+      school_id,
+      full_name,
+      date_of_birth,
+      gender,
+      grade,
+      emergency_contact,
+      disease,
+      requires_girls_only,
+      pickup_address,
+    });
 
     const updates = [];
     const values = [];
@@ -162,7 +185,8 @@ updateChild = async (req, res) => {
 
     if (requires_girls_only !== undefined) {
       updates.push(`requires_girls_only=$${index}`);
-      const requiresGirlsOnly = requires_girls_only === "true" || requires_girls_only === true;
+      const requiresGirlsOnly =
+        requires_girls_only === "true" || requires_girls_only === true;
       values.push(requiresGirlsOnly);
       index++;
     }
@@ -205,7 +229,7 @@ updateChild = async (req, res) => {
 deleteChild = async (req, res) => {
   const del = await pool.query(
     "DELETE FROM children WHERE id=$1 AND parent_id=$2 RETURNING id",
-    [req.params.childId, req.user.id]
+    [req.params.childId, req.user.id],
   );
   if (!del.rows.length) return res.status(404).json({ message: "Not found" });
   res.json({ message: "Deleted" });
@@ -216,7 +240,7 @@ getFeedback = async (req, res) => {
 
   const exists = await pool.query(
     "SELECT id FROM users WHERE id=$1 AND role='DRIVER'",
-    [driver_id]
+    [driver_id],
   );
   if (!exists.rows.length)
     return res.status(404).json({ message: "Driver not found" });
@@ -224,7 +248,7 @@ getFeedback = async (req, res) => {
   const fb = await pool.query(
     `INSERT INTO driver_ratings (driver_id,parent_id,child_id,rating,comments)
      VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [driver_id, req.user.id, child_id, rating, comments]
+    [driver_id, req.user.id, child_id, rating, comments],
   );
 
   res.status(201).json({ message: "Rating submitted", rating: fb.rows[0] });
@@ -237,7 +261,7 @@ getFeedbackHistory = async (req, res) => {
      JOIN users d ON d.id=r.driver_id
      WHERE r.parent_id=$1
      ORDER BY r.created_at DESC`,
-    [req.user.id]
+    [req.user.id],
   );
   res.json(data.rows);
 };
@@ -248,7 +272,7 @@ doComplaints = async (req, res) => {
   const comp = await pool.query(
     `INSERT INTO complaints (parent_id,driver_id,school_id,description)
      VALUES ($1,$2,$3,$4) RETURNING *`,
-    [req.user.id, driver_id, school_id, description]
+    [req.user.id, driver_id, school_id, description],
   );
 
   res.status(201).json({ message: "Complaint filed", complaint: comp.rows[0] });
@@ -257,7 +281,7 @@ doComplaints = async (req, res) => {
 getComplaintsHistory = async (req, res) => {
   const rows = await pool.query(
     "SELECT * FROM complaints WHERE parent_id=$1 ORDER BY created_at DESC",
-    [req.user.id]
+    [req.user.id],
   );
   res.json(rows.rows);
 };
@@ -273,3 +297,97 @@ module.exports = {
   doComplaints,
   getComplaintsHistory,
 };
+
+// import axios from "axios";
+// import pool from "../db"; // your PostgreSQL pool
+
+// const addChildren = async (req, res) => {
+//   try {
+//     const {
+//       branch_id,
+//       school_id,
+//       full_name,
+//       date_of_birth,
+//       gender,
+//       grade,
+//       emergency_contact,
+//       disease,
+//       requires_girls_only,
+//       pickup_address,
+//     } = req.body;
+//     const parent_id = req.user.id;
+
+//     // --- Check if we already have coordinates for this address ---
+//     const cached = await pool.query(
+//       "SELECT lat, lng FROM address_cache WHERE address = $1",
+//       [pickup_address]
+//     );
+
+//     let location;
+
+//     if (cached.rows.length) {
+//       location = {
+//         lat: cached.rows[0].lat,
+//         lng: cached.rows[0].lng,
+//       };
+//       console.log("Using cached coordinates:", location);
+//     } else {
+//       // --- Fetch from Nominatim ---
+//       const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+//         pickup_address
+//       )}`;
+
+//       const geoResp = await axios.get(nominatimUrl, {
+//         headers: {
+//           "User-Agent": "VanPoolingApp/1.0 (+yourdomain.com)",
+//         },
+//       });
+
+//       if (!geoResp.data.length)
+//         return res.status(400).json({ message: "Address not found" });
+
+//       location = {
+//         lat: parseFloat(geoResp.data[0].lat),
+//         lng: parseFloat(geoResp.data[0].lon),
+//       };
+
+//       // --- Save coordinates to cache for future ---
+//       await pool.query(
+//         "INSERT INTO address_cache (address, lat, lng) VALUES ($1,$2,$3)",
+//         [pickup_address, location.lat, location.lng]
+//       );
+
+//       console.log("Coordinates saved to cache:", location);
+//     }
+
+//     // --- Insert child into DB ---
+//     // const child = await pool.query(
+//     //   `INSERT INTO children
+//     //    (parent_id, branch_id, full_name, date_of_birth, gender, grade, emergency_contact, disease,
+//     //     requires_girls_only, pickup_address, lat, lng)
+//     //    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+//     //    RETURNING id`,
+//     //   [
+//     //     parent_id,
+//     //     branch_id,
+//     //     full_name,
+//     //     date_of_birth,
+//     //     gender.toUpperCase(),
+//     //     grade,
+//     //     emergency_contact,
+//     //     disease,
+//     //     requires_girls_only === "true",
+//     //     pickup_address,
+//     //     location.lat,
+//     //     location.lng,
+//     //   ]
+//     // );
+
+//     res.status(201).json({ message: "Child added", coordinates: location });
+//   } catch (e) {
+//     console.error(e);
+//     res.status(500).json({ error: e.message });
+//   }
+// };
+
+// export default addChildren;
