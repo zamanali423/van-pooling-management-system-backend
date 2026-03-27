@@ -293,11 +293,13 @@ viewAssignedStudents = async (req, res) => {
       b.id AS booking_id,
       s.id AS school_id,
       s.school_name AS school_address,
-      s.start_time - INTERVAL '40 minutes' AS pickup_time,
-      s.end_time AS drop_off_time
+      c.pickup_address,
+      sb.start_time - INTERVAL '40 minutes' AS pickup_time,
+      sb.end_time AS drop_off_time
     FROM bookings b
     JOIN children c ON c.id=b.child_id
-    JOIN schools s ON s.id=c.school_id
+    JOIN school_branches sb ON sb.id=c.branch_id
+    JOIN schools s ON s.id=sb.school_id
     JOIN users u ON u.id=c.parent_id
     JOIN vans v ON v.id=b.van_id
     WHERE v.driver_id=$1 AND b.status='COMPLETED'
