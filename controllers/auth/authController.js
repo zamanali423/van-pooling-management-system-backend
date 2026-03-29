@@ -26,7 +26,7 @@ const registerUser = async (req, res) => {
       // contact_number,
     } = req.body;
     const profile_photo = req.files?.profile_photo?.[0]?.path;
-    console.log(req.body)
+    console.log(req.body);
     console.log("Registration attempt:", {
       full_name,
       email,
@@ -41,14 +41,14 @@ const registerUser = async (req, res) => {
     // Check for duplicate email
     const emailExists = await pool.query(
       "SELECT id,email FROM users WHERE LOWER(email)=LOWER($1)",
-      [email],
+      [email]
     );
 
     if (emailExists.rows.length > 0) {
       console.log(
         "Email already exists:",
         emailExists.rows[0].id,
-        emailExists.rows[0].email,
+        emailExists.rows[0].email
       );
       return res.status(409).json({
         message: "Email already registered",
@@ -58,7 +58,7 @@ const registerUser = async (req, res) => {
 
     const phoneExists = await pool.query(
       "SELECT id FROM users WHERE phone=$1",
-      [phone],
+      [phone]
     );
 
     if (phoneExists.rows.length > 0) {
@@ -79,7 +79,7 @@ const registerUser = async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,COALESCE($6,''),false)
       RETURNING id
     `,
-      [full_name, email, phone, hash, role, profile_photo],
+      [full_name, email, phone, hash, role, profile_photo]
     );
 
     const userId = user.rows[0].id;
@@ -103,7 +103,7 @@ const registerUser = async (req, res) => {
           req.files?.vehicle_registration?.[0]?.path,
           req.files?.vehicle_photo?.[0]?.path,
           req.files?.number_plate?.[0]?.path,
-        ],
+        ]
       );
 
       await pool.query(
@@ -111,9 +111,18 @@ const registerUser = async (req, res) => {
         INSERT INTO driver_approvals(driver_id,branch_id,status,created_at)
         VALUES ($1,$2,'PENDING',CURRENT_TIMESTAMP)
       `,
-        [userId, branch_id],
+        [userId, branch_id]
       );
+    }
 
+    if (role === "GUARD" && branch_id) {
+      await pool.query(
+        `
+        INSERT INTO school_guards(guard_id,branch_id,approval_status,created_at)
+        VALUES ($1,$2,'PENDING',CURRENT_TIMESTAMP)
+      `,
+        [userId, branch_id]
+      );
     }
 
     // if (role === "SCHOOL") {
@@ -146,7 +155,7 @@ const registerUser = async (req, res) => {
       INSERT INTO users_otp(user_id,otp,expires_at)
       VALUES($1,$2,NOW() + interval '5 minutes')
     `,
-      [userId, otp],
+      [userId, otp]
     );
 
     await pool.query("COMMIT");
@@ -175,7 +184,7 @@ const loginUser = async (req, res) => {
     SELECT u.id,u.full_name,u.email,u.phone,u.password,u.is_verified,u.role,da.status
     FROM users u LEFT JOIN driver_approvals da ON u.id=da.driver_id WHERE email=$1
   `,
-      [email],
+      [email]
     );
 
     if (!u.rowCount) {
@@ -186,7 +195,7 @@ const loginUser = async (req, res) => {
     const user = u.rows[0];
     const driverApproval = await pool.query(
       "SELECT status FROM driver_approvals WHERE driver_id=$1",
-      [user.id],
+      [user.id]
     );
 
     if (!user.is_verified)
@@ -201,6 +210,20 @@ const loginUser = async (req, res) => {
           "Police record verification is in progress. Please try again later.",
       });
     }
+
+    const sg = await pool.query(
+      "SELECT exists (SELECT 1 FROM school_guards WHERE guard_id=$1 AND approval_status='APPROVED')",
+      [user.id]
+    );
+    if (!sg.rows[0].exists) {
+      await pool.query("ROLLBACK");
+      return res
+        .status(403)
+        .json({
+          message:
+            "Guard not approved please wait for approval by school authority",
+        });
+    }
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       await pool.query("ROLLBACK");
@@ -209,7 +232,7 @@ const loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || "1d" },
+      { expiresIn: process.env.JWT_EXPIRY || "1d" }
     );
 
     try {
@@ -242,7 +265,7 @@ const verifyOtp = async (req, res) => {
     JOIN users_otp o ON o.user_id=u.id
     WHERE u.email=$1 AND o.otp=$2 AND o.status='PENDING' AND o.expires_at>NOW()
   `,
-      [email, otp],
+      [email, otp]
     );
 
     if (!r.rowCount) {
@@ -254,7 +277,7 @@ const verifyOtp = async (req, res) => {
     ]);
     await pool.query(
       "UPDATE users_otp SET status='VERIFIED', otp='' WHERE user_id=$1",
-      [r.rows[0].id],
+      [r.rows[0].id]
     );
     await pool.query("COMMIT");
     return res.status(200).json({ message: "OTP verified" });
@@ -277,13 +300,13 @@ const resendOtp = async (req, res) => {
       INSERT INTO users_otp(user_id,otp,expires_at)
       VALUES($1,$2,NOW() + interval '5 minutes')
     `,
-      [userId, otp],
+      [userId, otp]
     );
 
     try {
       const user = await pool.query(
         "SELECT full_name, email FROM users WHERE id=$1",
-        [userId],
+        [userId]
       );
       if (user.rowCount) {
         await sendOtpEmail(user.rows[0].email, otp, user.rows[0].full_name);
@@ -303,7 +326,7 @@ const forgotPassword = async (req, res) => {
     const { email } = req.body;
     const r = await pool.query(
       "SELECT id, full_name FROM users WHERE email=$1",
-      [email],
+      [email]
     );
     if (!r.rowCount) return res.status(400).json({ message: "User not found" });
     const userId = r.rows[0].id;
@@ -336,7 +359,7 @@ const resetPassword = async (req, res) => {
     const r = await pool.query(
       `
     SELECT id FROM users WHERE email=$1`,
-      [email],
+      [email]
     );
     if (!r.rowCount) return res.status(404).json({ message: "User not found" });
     const userId = r.rows[0].id;

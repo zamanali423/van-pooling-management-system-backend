@@ -8,8 +8,8 @@ const getActiveVans = async (req, res) => {
       return res.status(400).json({ message: "guard_id is required" });
 
     const schoolResult = await pool.query(
-      `SELECT school_id FROM school_guards WHERE guard_id=$1 AND approval_status='APPROVED'`,
-      [guard_id],
+      `SELECT branch_id FROM school_guards WHERE guard_id=$1 AND approval_status='APPROVED'`,
+      [guard_id]
     );
 
     if (!schoolResult.rows.length)
@@ -17,26 +17,27 @@ const getActiveVans = async (req, res) => {
         .status(404)
         .json({ message: "Guard not assigned to any school" });
 
-    const schoolId = schoolResult.rows[0].school_id;
+    const branch_id = schoolResult.rows[0].branch_id;
 
     const vans = await pool.query(
       `
       SELECT 
         R.name AS route_name,
-        S.start_time,
-        S.end_time,
+        SB.start_time,
+        SB.end_time,
         COUNT(DISTINCT V.id) AS total_vans,
         COUNT(DISTINCT B.child_id) AS total_students
       FROM routes R
       JOIN vans V ON V.id = R.van_id
-      LEFT JOIN bookings B ON B.van_id = V.id AND B.status='ACTIVE'
-      JOIN schools S ON S.id = R.school_id
-      WHERE R.school_id = $1
+      LEFT JOIN bookings B ON B.van_id = V.id AND B.status='COMPLETED'
+      JOIN school_branches SB ON SB.id = R.branch_id
+      JOIN schools S ON S.id = SB.school_id
+      WHERE R.branch_id = $1
         AND V.is_active = true
-      GROUP BY R.name, S.start_time, S.end_time
-      ORDER BY S.start_time
+      GROUP BY R.name, SB.start_time, SB.end_time
+      ORDER BY SB.start_time
       `,
-      [schoolId],
+      [branch_id]
     );
 
     const now = new Date();
@@ -91,7 +92,7 @@ const studentsToVerify = async (req, res) => {
        FROM school_guards 
        WHERE guard_id = $1 
          AND approval_status = 'APPROVED'`,
-      [guard_id],
+      [guard_id]
     );
 
     if (!schoolResult.rows.length)
@@ -127,7 +128,7 @@ const studentsToVerify = async (req, res) => {
             AND DATE(GV.verification_time) = CURRENT_DATE
         )
       `,
-      [school_id, verification_type],
+      [school_id, verification_type]
     );
 
     if (!students.rows.length)
@@ -167,7 +168,7 @@ const verifyToStudent = async (req, res) => {
         latitude,
         longitude,
         remarks,
-      ],
+      ]
     );
 
     res.status(200).json({ message: "Verification successful" });
@@ -188,10 +189,10 @@ const verifyToAllStudents = async (req, res) => {
       `
       SELECT C.id, B.van_id
       FROM children C
-      JOIN bookings B ON B.child_id=C.id AND B.status='ACTIVE'
+      JOIN bookings B ON B.child_id=C.id AND B.status='COMPLETED'
       WHERE C.school_id=$1
       `,
-      [school_id],
+      [school_id]
     );
 
     for (const student of students.rows) {
@@ -202,7 +203,7 @@ const verifyToAllStudents = async (req, res) => {
         VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT DO NOTHING
         `,
-        [guard_id, student.id, student.van_id, school_id, verification_type],
+        [guard_id, student.id, student.van_id, school_id, verification_type]
       );
     }
 
@@ -221,7 +222,7 @@ const getAllStudents = async (req, res) => {
        FROM school_guards 
        WHERE guard_id = $1 
          AND approval_status = 'APPROVED'`,
-      [guard_id],
+      [guard_id]
     );
 
     if (!schoolResult.rows.length)
@@ -241,12 +242,12 @@ const getAllStudents = async (req, res) => {
         U.full_name AS parent_name,
         U.phone AS parent_phone
       FROM children C
-      LEFT JOIN bookings B ON B.child_id = C.id AND B.status='ACTIVE'
+      LEFT JOIN bookings B ON B.child_id = C.id AND B.status='COMPLETED'
       LEFT JOIN vans V ON V.id = B.van_id
       LEFT JOIN users U ON U.id = C.parent_id
       WHERE C.school_id = $1
       `,
-      [school_id],
+      [school_id]
     );
 
     res.status(200).json({ students: students.rows });
@@ -267,12 +268,12 @@ const getStudentDetails = async (req, res) => {
         U.full_name AS parent_name,
         U.phone AS parent_phone
       FROM children C
-      LEFT JOIN bookings B ON B.child_id=C.id AND B.status='ACTIVE'
+      LEFT JOIN bookings B ON B.child_id=C.id AND B.status='COMPLETED'
       LEFT JOIN vans V ON V.id=B.van_id
       LEFT JOIN users U ON U.id=C.parent_id
       WHERE C.id=$1
       `,
-      [childId],
+      [childId]
     );
 
     if (!student.rows.length)
@@ -288,11 +289,11 @@ const recentVerifiedStudents = async (req, res) => {
   try {
     const guard_id = req.user.id;
     const schoolResult = await pool.query(
-      `SELECT school_id 
+      `SELECT branch_id 
        FROM school_guards 
        WHERE guard_id = $1 
          AND approval_status = 'APPROVED'`,
-      [guard_id],
+      [guard_id]
     );
 
     if (!schoolResult.rows.length)
@@ -300,7 +301,7 @@ const recentVerifiedStudents = async (req, res) => {
         .status(404)
         .json({ message: "Guard not assigned to any school" });
 
-    const school_id = schoolResult.rows[0].school_id;
+    const branch_id = schoolResult.rows[0].branch_id;
 
     const students = await pool.query(
       `
@@ -313,12 +314,12 @@ const recentVerifiedStudents = async (req, res) => {
         U.full_name AS driver_name
       FROM guard_verifications GV
       JOIN children C ON C.id = GV.child_id
-      LEFT JOIN bookings B ON B.child_id = C.id AND B.status='ACTIVE'
+      LEFT JOIN bookings B ON B.child_id = C.id AND B.status='COMPLETED'
       LEFT JOIN vans V ON V.id = B.van_id
       LEFT JOIN users U ON U.id = V.driver_id
-      WHERE C.school_id = $1
+      WHERE C.branch_id = $1
       `,
-      [school_id],
+      [branch_id]
     );
 
     res.status(200).json({ students: students.rows });
@@ -331,7 +332,7 @@ cron.schedule("0 12 * * *", async () => {
   try {
     console.log("Running daily reset for children verification...");
     await pool.query(
-      "UPDATE children SET is_verified=false WHERE school_id IS NOT NULL",
+      "UPDATE children SET is_verified=false WHERE school_id IS NOT NULL"
     );
     console.log("Verification statuses reset successfully.");
   } catch (error) {
