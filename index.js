@@ -10,6 +10,7 @@ const { authLimiter, apiLimiter } = require("./middlewares/rateLimiter");
 const http = require("http");
 const { Server } = require("socket.io");
 const shareDriverLocation = require("./sockets/shareDriverLocation");
+const guardData = require("./sockets/guardData");
 
 const app = express();
 const port = process.env.PORT || 7860;
@@ -99,6 +100,7 @@ const io = new Server(server, {
 });
 
 shareDriverLocation(io);
+guardData(io);
 
 //middlewares for error handling
 app.use(require("./middlewares/errorsHandling").routeNotFoundMiddleware);
